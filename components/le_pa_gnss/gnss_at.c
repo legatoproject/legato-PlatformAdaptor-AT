@@ -1564,7 +1564,7 @@ le_result_t pa_gnss_SetSuplServerUrl
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_gnss_InjectSuplCertificate
 (
-    uint8_t  suplCertificateId,      ///< [IN] Certificate ID of the SUPL certificate.
+    uint8_t  suplCertificateId,      ///< [IN] ID of the SUPL certificate.
                                      ///< Certificate ID range is 0 to 9
     uint16_t suplCertificateLen,     ///< [IN] SUPL certificate size in Bytes.
     const char*  suplCertificatePtr  ///< [IN] SUPL certificate contents.
@@ -1586,7 +1586,7 @@ le_result_t pa_gnss_InjectSuplCertificate
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_gnss_DeleteSuplCertificate
 (
-    uint8_t  suplCertificateId  ///< [IN]  Certificate ID of the SUPL certificate.
+    uint8_t  suplCertificateId  ///< [IN]  ID of the SUPL certificate.
                                 ///< Certificate ID range is 0 to 9
 )
 {
