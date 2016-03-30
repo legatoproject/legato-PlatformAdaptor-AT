@@ -1384,10 +1384,10 @@ le_result_t pa_gnss_LoadExtendedEphemerisFile
  * @TODO    implementation
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_gnss_GetExtendedEphemerisValidityTimes
+le_result_t pa_gnss_GetExtendedEphemerisValidity
 (
-    le_clk_Time_t *startTimePtr,    ///< [OUT] Start time
-    le_clk_Time_t *stopTimePtr      ///< [OUT] Stop time
+    uint64_t *startTimePtr,    ///< [OUT] Start time in seconds (since Jan. 1, 1970)
+    uint64_t *stopTimePtr      ///< [OUT] Stop time in seconds (since Jan. 1, 1970)
 )
 {
     return LE_FAULT;
