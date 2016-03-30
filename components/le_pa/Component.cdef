@@ -38,6 +38,7 @@ sources:
 
 cflags:
 {
+    -I$LEGATO_ROOT/components/modemServices/modemDaemon
     -I$LEGATO_ROOT/components/modemServices/platformAdaptor/inc
     -I$LEGATO_ROOT/components
 }
