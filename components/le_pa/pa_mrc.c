@@ -7,7 +7,6 @@
 
 #include "legato.h"
 
-#include "pa.h"
 #include "pa_mrc.h"
 #include "pa_common_local.h"
 

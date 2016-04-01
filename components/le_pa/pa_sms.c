@@ -12,7 +12,6 @@
 
 #include "legato.h"
 
-#include "pa.h"
 #include "pa_sms.h"
 #include "pa_sms_local.h"
 #include "pa_common_local.h"

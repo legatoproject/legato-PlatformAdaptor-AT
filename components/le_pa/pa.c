@@ -8,7 +8,6 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#include "pa.h"
 #include "atManager/inc/atMgr.h"
 #include "atManager/inc/atCmdSync.h"
 #include "atManager/inc/atPorts.h"
@@ -203,18 +202,13 @@ static void* PAThreadInit(void* context)
     return NULL;
 }
 
-
 //--------------------------------------------------------------------------------------------------
 /**
- * This function initializes the platform adapter layer for modem services.
+ * Component initializer automatically called by the application framework when the process starts.
  *
- * @note This does NOT initialize positioning services access via QMI.
- *
- * @todo Clarify the separation of positioning services and modem services in the PA layer
- *       interface.
- */
+ **/
 //--------------------------------------------------------------------------------------------------
-void le_pa_Init()
+COMPONENT_INIT
 {
     if (atports_GetInterface(ATPORT_COMMAND)==NULL) {
         LE_WARN("PA cannot be initialized");
@@ -242,17 +236,4 @@ void le_pa_Init()
     {
         LE_WARN("PA is not configured as expected");
     }
-}
-
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Component initializer automatically called by the application framework when the process starts.
- *
- * This is not used because the PA component is shared by two different processes (the Modem Daemon
- * and the Positioning Daemon), and each needs different QMI services initialized.
- **/
-//--------------------------------------------------------------------------------------------------
-COMPONENT_INIT
-{
 }

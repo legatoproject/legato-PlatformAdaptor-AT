@@ -8,7 +8,6 @@
 
 
 #include "legato.h"
-#include "pa.h"
 #include "pa_info.h"
 
 
