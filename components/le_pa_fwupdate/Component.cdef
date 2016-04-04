@@ -1,9 +1,3 @@
-
-requires:
-{
-    component: { $LEGATO_ROOT/components/fwupdate/platformAdaptor/default/le_pa_fwupdate_default }
-}
-
 sources:
 {
     pa_fwupdate.c

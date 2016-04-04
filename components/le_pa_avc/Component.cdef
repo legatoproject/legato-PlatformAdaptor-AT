@@ -1,9 +1,3 @@
-
-requires:
-{
-    component: { $LEGATO_ROOT/components/airVantage/platformAdaptor/default/le_pa_avc_default }
-}
-
 sources:
 {
     pa_avc.c
