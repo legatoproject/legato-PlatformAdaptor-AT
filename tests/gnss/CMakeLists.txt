@@ -12,7 +12,7 @@ set_legato_component(${APP_COMPONENT})
 add_legato_internal_executable(${APP_TARGET} ${APP_SOURCES})
 
 target_link_libraries(${APP_TARGET}
-    ${LEGATO_COMPONENTS_AT_MANAGER_TARGET}
+    ${LEGATO_COMPONENTS_AT_TARGET}
     ${LEGATO_COMPONENTS_GNSS_TARGET}
     pthread
 )

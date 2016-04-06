@@ -8,9 +8,7 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-#include "atManager/inc/atMgr.h"
-#include "atManager/inc/atCmdSync.h"
-#include "atManager/inc/atPorts.h"
+#include "at/inc/le_atClient.h"
 
 #include "pa_mrc.h"
 #include "pa_mrc_local.h"
@@ -41,12 +39,16 @@ static le_thread_Ref_t  PaThreadRef = NULL;
 //--------------------------------------------------------------------------------------------------
 static le_result_t  EnableCMEE()
 {
+    const char*          commandPtr   = "AT+CMEE=1";
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                "at+cmee=1",
-                                                NULL,
-                                                NULL,
-                                                30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -60,11 +62,16 @@ static le_result_t  EnableCMEE()
 //--------------------------------------------------------------------------------------------------
 static le_result_t  DisableEcho()
 {
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                "ate0",
-                                                NULL,
-                                                NULL,
-                                                30000);
+    const char*          commandPtr   = "ATE0";
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -78,11 +85,16 @@ static le_result_t  DisableEcho()
 //--------------------------------------------------------------------------------------------------
 static le_result_t  SaveSettings()
 {
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                "at&W",
-                                                NULL,
-                                                NULL,
-                                                30000);
+    const char*          commandPtr   = "AT&W";
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -183,7 +195,6 @@ static le_result_t DefaultConfig()
 static void* PAThreadInit(void* context)
 {
     le_sem_Ref_t semPtr = context;
-    LE_INFO("Start PA");
 
     pa_common_Init();
     pa_mrc_Init();
@@ -191,7 +202,7 @@ static void* PAThreadInit(void* context)
     pa_sim_Init();
     pa_mdc_Init();
     pa_mcc_Init();
-    pa_ecall_Init(PA_ECALL_PAN_EUROPEAN);
+    //pa_ecall_Init(PA_ECALL_PAN_EUROPEAN);
     pa_ips_Init();
     pa_temp_Init();
     pa_antenna_Init();
@@ -202,6 +213,7 @@ static void* PAThreadInit(void* context)
     return NULL;
 }
 
+
 //--------------------------------------------------------------------------------------------------
 /**
  * Component initializer automatically called by the application framework when the process starts.
@@ -210,12 +222,6 @@ static void* PAThreadInit(void* context)
 //--------------------------------------------------------------------------------------------------
 COMPONENT_INIT
 {
-    if (atports_GetInterface(ATPORT_COMMAND)==NULL) {
-        LE_WARN("PA cannot be initialized");
-    }
-
-        atmgr_StartInterface(atports_GetInterface(ATPORT_COMMAND));
-
     le_sem_Ref_t semPtr = le_sem_Create("PAStartSem",0);
 
     if (PaThreadRef == NULL) {

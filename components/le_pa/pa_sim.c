@@ -7,8 +7,7 @@
 
 
 #include "legato.h"
-#include "atManager/inc/atCmdSync.h"
-#include "atManager/inc/atPorts.h"
+#include "at/inc/le_atClient.h"
 
 #include "pa_sim.h"
 #include "pa_common_local.h"
@@ -21,51 +20,6 @@ static le_event_Id_t      EventUnsolicitedId;
 static le_event_Id_t      EventNewSimStateId;
 
 static le_sim_Id_t        UimSelect = LE_SIM_EXTERNAL_SLOT_1; // external SIM selected by default
-
-
-/**
- * This function resets the modem. It must be called after a new SIM card selection, otherwise the
- * new SIM card selection is not taken into account.
- *
- * @return LE_FAULT         The function failed.
- * @return LE_TIMEOUT       No response was received.
- * @return LE_OK            The function succeeded.
- */
-//--------------------------------------------------------------------------------------------------
-static le_result_t resetModem
-(
-    void
-)
-{
-    atcmdsync_ResultRef_t  resRef=NULL;
-    const char* finalRespOkPtr[] = {"+WIND: 4",NULL };
-    const char* finalRespKoPtr[] = {"ERROR","+CME ERROR:","+CMS ERROR:","TIMEOUT",NULL};
-
-    atcmd_Ref_t atReqRef = atcmd_Create();
-
-    atcmd_AddCommand(atReqRef,"at+cfun=1",false);
-    atcmd_AddData       (atReqRef,NULL,0);
-    atcmd_SetTimer      (atReqRef,30000,atcmdsync_GetTimerExpiryHandler());
-    atcmd_AddIntermediateResp    (atReqRef,atcmdsync_GetIntermediateEventId(),NULL);
-    atcmd_AddFinalResp(atReqRef,atcmdsync_GetFinalEventId(),finalRespOkPtr);
-    atcmd_AddFinalResp(atReqRef,atcmdsync_GetFinalEventId(),finalRespKoPtr);
-
-    resRef = atcmdsync_SendCommand(atports_GetInterface(ATPORT_COMMAND),atReqRef);
-
-    le_result_t result = atcmdsync_CheckCommandResult(resRef,finalRespOkPtr,finalRespKoPtr);
-
-    le_mem_Release(atReqRef);   // Release e_atmgr_Object_CreateATCommand
-    le_mem_Release(resRef);  // Release le_pa_at_SendSync
-
-    if ( result != LE_OK )
-    {
-        return LE_FAULT;
-    }
-    else
-    {
-        return LE_OK;
-    }
-}
 
 
 /**
@@ -262,27 +216,27 @@ static bool CheckStatus
     memcpy(line,lineStr,MAXLINE);
     line[MAXLINE] = '\0';
 
-    atcmd_CountLineParameter(line);
+    le_atClient_cmd_CountLineParameter(line);
 
-    if (FIND_STRING("OK",atcmd_GetLineParameter(line,1)))
+    if (FIND_STRING("OK",le_atClient_cmd_GetLineParameter(line,1)))
     {
         *statePtr = LE_SIM_READY;
     }
-    else if (FIND_STRING("+CME ERROR:",atcmd_GetLineParameter(line,1)))
+    else if (FIND_STRING("+CME ERROR:",le_atClient_cmd_GetLineParameter(line,1)))
     {
-        CheckStatus_CmeErrorCode(atcmd_GetLineParameter(line,2),statePtr);
+        CheckStatus_CmeErrorCode(le_atClient_cmd_GetLineParameter(line,2),statePtr);
     }
-    else if (FIND_STRING("+CMS ERROR:",atcmd_GetLineParameter(line,1)))
+    else if (FIND_STRING("+CMS ERROR:",le_atClient_cmd_GetLineParameter(line,1)))
     {
-        CheckStatus_CmsErrorCode(atcmd_GetLineParameter(line,2),statePtr);
+        CheckStatus_CmsErrorCode(le_atClient_cmd_GetLineParameter(line,2),statePtr);
     }
-    else if (FIND_STRING("+CPIN:",atcmd_GetLineParameter(line,1)))
+    else if (FIND_STRING("+CPIN:",le_atClient_cmd_GetLineParameter(line,1)))
     {
-        CheckStatus_CpinCode(atcmd_GetLineParameter(line,2),statePtr);
+        CheckStatus_CpinCode(le_atClient_cmd_GetLineParameter(line,2),statePtr);
     }
-    else if (FIND_STRING("+WIND:",atcmd_GetLineParameter(line,1)))
+    else if (FIND_STRING("+WIND:",le_atClient_cmd_GetLineParameter(line,1)))
     {
-        CheckStatus_WindCode(atcmd_GetLineParameter(line,2),statePtr);
+        CheckStatus_WindCode(le_atClient_cmd_GetLineParameter(line,2),statePtr);
     }
     else
     {
@@ -327,10 +281,11 @@ static void SIMUnsolHandler
     void* reportPtr
 )
 {
-    atmgr_UnsolResponse_t* unsolPtr = reportPtr;
+    char* unsolPtr = reportPtr;
+
     le_sim_States_t simState = LE_SIM_STATE_UNKNOWN;
 
-    if (CheckStatus(unsolPtr->line,&simState))
+    if (CheckStatus(unsolPtr,&simState))
     {
         ReportStatus(UimSelect,simState);
     }
@@ -363,15 +318,13 @@ static le_result_t SetIndicator
         return LE_FAULT;
     }
 
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   EventUnsolicitedId,
-                                   "+WIND: 0",
-                                   false);
+    le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,
+                                              "+WIND: 0",
+                                              false);
 
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   EventUnsolicitedId,
-                                   "+WIND: 1",
-                                   false);
+    le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,
+                                              "+WIND: 1",
+                                              false);
 
     return LE_OK;
 }
@@ -389,15 +342,15 @@ le_result_t pa_sim_Init
     void
 )
 {
-    if (atports_GetInterface(ATPORT_COMMAND)==NULL) {
-        LE_DEBUG("SIM Module is not initialize in this session");
-        return LE_FAULT;
-    }
+//     if (AllPorts[ATPORT_COMMAND]==NULL) {
+//         LE_DEBUG("SIM Module is not initialize in this session");
+//         return LE_FAULT;
+//     }
 
     SimEventPoolRef = le_mem_CreatePool("SimEventPool", sizeof(pa_sim_Event_t));
     SimEventPoolRef = le_mem_ExpandPool(SimEventPoolRef,DEFAULT_SIMEVENT_POOL_SIZE);
 
-    EventUnsolicitedId    = le_event_CreateId("SIMEventIdUnsol",sizeof(atmgr_UnsolResponse_t));
+    EventUnsolicitedId    = le_event_CreateId("SIMEventIdUnsol",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
     EventNewSimStateId    = le_event_CreateIdWithRefCounting("SIMEventIdNewState");
     le_event_AddHandler("SIMUnsolHandler",EventUnsolicitedId  ,SIMUnsolHandler);
 
@@ -421,41 +374,8 @@ uint32_t pa_sim_CountSlots
     void
 )
 {
-    atcmdsync_ResultRef_t  resRef = NULL;
-    const char* interRespPtr[] = {"+WHCNF: 4",NULL};
-    uint32_t numberOfSim=1;
-
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                "at+whcnf=?",
-                                                &resRef,
-                                                interRespPtr,
-                                                30000);
-
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef); // release pa_at_SendSyncDefaultExt
-        return LE_FAULT;
-    }
-
-    // If there is more than one line then it mean that the command is OK so the first line is
-    if (atcmdsync_GetNumLines(resRef) == 2)
-    {
-        char* line = atcmdsync_GetLine(resRef,0);
-        if (FIND_STRING("+WHCNF: 4,(0-3)",line))
-        {
-            numberOfSim = 2;
-        }
-        else
-        {
-            LE_WARN("this pattern is not expected");
-            numberOfSim = 1;
-        }
-    } else {
-        numberOfSim = 1;
-    }
-
-    le_mem_Release(resRef);     // Release pa_at_SendSyncDefaultExt
-
-    return numberOfSim;
+     uint32_t numberOfSim = 1;
+     return numberOfSim;
 }
 
 
@@ -473,30 +393,10 @@ le_result_t pa_sim_SelectCard
     le_sim_Id_t  cardId     ///< The SIM to be selected
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
-
-    if ((cardId==LE_SIM_EXTERNAL_SLOT_1) || (cardId==LE_SIM_EXTERNAL_SLOT_2)) {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+whcnf=4,%d",cardId);
-    } else {
-        LE_DEBUG("This card number (%d) is not supported",cardId);
+    if (cardId != LE_SIM_EXTERNAL_SLOT_1)
+    {
         return LE_FAULT;
     }
-
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                atcommand,
-                                                NULL,
-                                                NULL,
-                                                30000);
-
-    if ( result != LE_OK ) {
-        return LE_FAULT;
-    }
-
-    if (resetModem()!=LE_OK)
-        {
-        return LE_FAULT;
-        }
-
     UimSelect = cardId;
 
     return LE_OK;
@@ -516,44 +416,8 @@ le_result_t pa_sim_GetSelectedCard
     le_sim_Id_t*  cardIdPtr     ///< [OUT] The card number selected.
 )
 {
-    le_result_t result=LE_OK;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    const char* interRespPtr[] = {"+WHCNF: 4",NULL};
-
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+whcnf?",
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
-
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef); // release pa_at_SendSyncDefaultExt
-        return LE_FAULT;
-    }
-
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    if (atcmdsync_GetNumLines(resRef) == 2)
-    {
-        char* line = atcmdsync_GetLine(resRef,0);
-        if (FIND_STRING("+WHCNF: 4,1",line))
-        {
-            *cardIdPtr = 1;
-        }
-        else if (FIND_STRING("+WHCNF: 4,2",line))
-        {
-            *cardIdPtr = 2;
-        }
-        else
-        {
-            LE_WARN("this pattern is not expected");
-            result =  LE_FAULT;
-        }
-    }
-
-    le_mem_Release(resRef);     // Release pa_at_SendSyncDefaultExt
-
-    return result;
+    *cardIdPtr = 1;
+    return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -571,9 +435,16 @@ le_result_t pa_sim_GetCardIdentification
     pa_sim_CardId_t iccid     ///< [OUT] CCID value
 )
 {
-    le_result_t result=LE_OK;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    const char* interRespPtr[] = {"+CCID:",NULL};
+    const char* commandPtr     = "AT+CCID";
+    const char* interRespPtr   = "+CCID:";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+    char firstResponse[COMMAND_LEN_MAX];
+    char finalResponse[COMMAND_LEN_MAX];
+    char* tokenPtr;
+    char* savePtr;
 
     if (!iccid)
     {
@@ -581,53 +452,42 @@ le_result_t pa_sim_GetCardIdentification
         return LE_BAD_PARAMETER;
     }
 
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+ccid",
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);
-        return LE_FAULT;
-    }
-
-    le_sim_States_t simState=LE_SIM_STATE_UNKNOWN;
-    char* line = atcmdsync_GetLine(resRef,0);
-    if (CheckStatus(line,&simState))
+    if (res != LE_OK)
     {
-        ReportStatus(UimSelect,simState);
+        le_atClient_Delete(cmdRef);
+        return res;
     }
-
-    // check error
-    if (atcmdsync_GetNumLines(resRef) == 2)
+    else
     {
-
-        line = atcmdsync_GetLine(resRef,0);
-        uint32_t numParam = atcmd_CountLineParameter(line);
-        // it parse just the first line because of '\0'
-
-        if (FIND_STRING("+CCID:",atcmd_GetLineParameter(line,1)))
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
-            if (numParam==2)
-            {
-                atcmd_CopyStringWithoutQuote(iccid,
-                                            atcmd_GetLineParameter(line,2),
-                                            strlen(atcmd_GetLineParameter(line,2)));
-                result = LE_OK;
-            } else {
-                LE_WARN("this pattern is not expected");
-                result=LE_FAULT;
-            }
-        } else {
-            LE_WARN("this pattern is not expected");
-            result=LE_FAULT;
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
         }
-    }
 
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommandDefaultExt
-    return result;
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        if (res != LE_OK)
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
+
+        // Cut the string for keep just the CCID number
+        tokenPtr = strtok_r(firstResponse, "\"", &savePtr);
+        tokenPtr = strtok_r(NULL, "\"", &savePtr);
+
+        strncpy(iccid, tokenPtr, strlen(tokenPtr));
+
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -644,10 +504,14 @@ le_result_t pa_sim_GetIMSI
     pa_sim_Imsi_t imsi   ///< [OUT] IMSI value
 )
 {
-    le_result_t result;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    // IMSI start with 0|1|2|3|4|5|6|7|8|9
-    const char* interRespPtr[] = {"0","1","2","3","4","5","6","7","8","9",NULL};
+    const char* commandPtr       = "AT+CIMI";
+    const char* interRespPtr     = "0|1|2|3|4|5|6|7|8|9";
+    const char* respPtr          = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+    char firstResponse[COMMAND_LEN_MAX];
+    char finalResponse[COMMAND_LEN_MAX];
 
     if (!imsi)
     {
@@ -655,46 +519,38 @@ le_result_t pa_sim_GetIMSI
         return LE_BAD_PARAMETER;
     }
 
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+cimi",
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);
-        return LE_FAULT;
-    }
-
-    le_sim_States_t simState=LE_SIM_STATE_UNKNOWN;
-    char* line = atcmdsync_GetLine(resRef,0);
-    if (CheckStatus(line,&simState))
+    if (res != LE_OK)
     {
-        ReportStatus(UimSelect,simState);
+        le_atClient_Delete(cmdRef);
+        return res;
     }
-
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    if (atcmdsync_GetNumLines(resRef) == 2)
+    else
     {
-        line = atcmdsync_GetLine(resRef,0);
-        // copy just the first line because of '\0'
-        atcmd_CopyStringWithoutQuote(imsi,
-                                   line,
-                                   strlen(line));
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
 
-        result = LE_OK;
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        if (res != LE_OK)
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
+
+        strncpy(imsi, firstResponse, strlen(firstResponse));
+
+        le_atClient_Delete(cmdRef);
+        return res;
     }
-    // it is not expected
-    else {
-        LE_WARN("this pattern is not expected");
-        result = LE_FAULT;
-    }
-
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommandDefaultExt
-
-    return result;
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -711,12 +567,13 @@ le_result_t pa_sim_GetState
     le_sim_States_t* statePtr    ///< [OUT] SIM state
 )
 {
-    int32_t result = LE_FAULT;
-    atcmd_Ref_t atReqRef;
-    atcmdsync_ResultRef_t  resRef = NULL;
+    const char* commandPtr     = "AT+CPIN?";
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "+CPIN:|ERROR|+CME ERROR:";
 
-    const char* finalRespOkPtr[] = {"OK","+CPIN:",NULL};
-    const char* finalRespKoPtr[] = {"ERROR","+CME ERROR:","+CMS ERROR:","TIMEOUT",NULL};
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+    char finalResponse[COMMAND_LEN_MAX];
 
     if (!statePtr)
     {
@@ -724,38 +581,29 @@ le_result_t pa_sim_GetState
         return LE_BAD_PARAMETER;
     }
 
-    *statePtr=LE_SIM_STATE_UNKNOWN;
+    *statePtr = LE_SIM_STATE_UNKNOWN;
 
-    atReqRef = atcmd_Create();
-    atcmd_AddCommand(atReqRef,"at+cpin?",false);
-    atcmd_AddData(atReqRef,NULL,0);
-    atcmd_SetTimer(atReqRef,30000,atcmdsync_GetTimerExpiryHandler());
-    atcmd_AddIntermediateResp    (atReqRef,atcmdsync_GetIntermediateEventId(),NULL);
-    atcmd_AddFinalResp(atReqRef,atcmdsync_GetFinalEventId(),finalRespOkPtr);
-    atcmd_AddFinalResp(atReqRef,atcmdsync_GetFinalEventId(),finalRespKoPtr);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    resRef    = atcmdsync_SendCommand(atports_GetInterface(ATPORT_COMMAND),atReqRef);
-
-    char* line = atcmdsync_GetFinalLine(resRef);
-
-    // Check timeout
-    if (FIND_STRING("TIMEOUT",line)) {
-        LE_WARN("Modem failed");
-        le_mem_Release(atReqRef); le_mem_Release(resRef);
-        return LE_TIMEOUT;
-    }
-
-    if (CheckStatus(line,statePtr))
+    if (res == LE_OK)
     {
-        ReportStatus(UimSelect,*statePtr);
-        result = LE_OK;
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        if (res != LE_OK)
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
+
+        if (CheckStatus(finalResponse,statePtr))
+        {
+            ReportStatus(UimSelect,*statePtr);
+        }
     }
-
-    le_mem_Release(atReqRef);  // Release atcmdsync_SetCommand
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommand
-
-    return result;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -773,13 +621,14 @@ le_event_HandlerRef_t pa_sim_AddNewStateHandler
 {
     LE_DEBUG("Set new SIM State handler");
 
-    if (handler==NULL) {
+    if (handler==NULL)
+    {
         LE_FATAL("new SIM State handler is NULL");
     }
 
     return (le_event_AddHandler("NewSIMStateHandler",
-                               EventNewSimStateId,
-                               (le_event_HandlerFunc_t) handler));
+                                EventNewSimStateId,
+                                (le_event_HandlerFunc_t) handler));
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -814,32 +663,21 @@ le_result_t pa_sim_EnterPIN
     const pa_sim_Pin_t pin    ///< [IN] pin code
 )
 {
-    atcmdsync_ResultRef_t  resRef = NULL;
-    char atcommand[ATCOMMAND_SIZE] ;
+    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cpin=%s",pin);
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                atcommand,
-                                                &resRef,
-                                                NULL,
-                                                30000);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CPIN=%s",pin);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);
-        return LE_FAULT;
-    }
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    le_sim_States_t simState=LE_SIM_STATE_UNKNOWN;
-    char* line = atcmdsync_GetLine(resRef,0);
-    if (CheckStatus(line,&simState))
-    {
-        ReportStatus(UimSelect,simState);
-    }
-
-    le_mem_Release(resRef); // release atcmdsync_SendCommandDefault
-    return LE_OK;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -861,32 +699,21 @@ le_result_t pa_sim_EnterPUK
     const pa_sim_Pin_t pin   ///< [IN] new PIN code
 )
 {
-    atcmdsync_ResultRef_t  resRef = NULL;
-    char atcommand[ATCOMMAND_SIZE] ;
+    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cpin=%s,%s",puk,pin);
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                atcommand,
-                                                &resRef,
-                                                NULL,
-                                                30000);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CPIN=%s,%s",puk,pin);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);
-        return LE_FAULT;
-    }
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    le_sim_States_t simState=LE_SIM_STATE_UNKNOWN;
-    char* line = atcmdsync_GetLine(resRef,0);
-    if (CheckStatus(line,&simState))
-    {
-        ReportStatus(UimSelect,simState);
-    }
-
-    le_mem_Release(resRef); // release atcmdsync_SendCommandDefault
-    return LE_OK;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -900,13 +727,21 @@ le_result_t pa_sim_EnterPUK
 //--------------------------------------------------------------------------------------------------
 static le_result_t pa_sim_GetRemainingAttempts
 (
-    uint32_t  idx,      ///< [IN] idx to read
+    uint32_t  idx,          ///< [IN] idx to read
     uint32_t* attemptsPtr  ///< [OUT] The number of attempts still possible
 )
 {
-    le_result_t result = LE_FAULT;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    const char* interRespPtr[] = {"+CPINC:",NULL};
+    const char* commandPtr     = "AT+CPINC";
+    const char* interRespPtr   = "+CPINC:";
+    const char* respPtr        = "\0";
+
+    char firstResponse[50];
+    char finalResponse[50];
+    char* tokenPtr              = NULL;
+    char* rest                  = NULL;
+    char* savePtr               = NULL;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
     if (!attemptsPtr)
     {
@@ -914,43 +749,52 @@ static le_result_t pa_sim_GetRemainingAttempts
         return LE_BAD_PARAMETER;
     }
 
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+cpinc",
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef); // release atcmdsync_SendCommandDefaultExt
-        return LE_FAULT;
-    }
-
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    if (atcmdsync_GetNumLines(resRef) == 2)
+    if (res != LE_OK)
     {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(resRef,0);
-        uint32_t numParam = atcmd_CountLineParameter(line);
-        // it parse just the first line because of '\0'
-        if ((numParam==5) && (FIND_STRING("+CPINC:",atcmd_GetLineParameter(line,1))))
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+    else
+    {
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,50);
+        if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
         {
-            *attemptsPtr = atoi(atcmd_GetLineParameter(line,idx));
-
-            result = LE_OK;
-        } else {
-            LE_WARN("this pattern is not expected");
-            result = LE_FAULT;
+            LE_ERROR("Function failed !");
+            le_atClient_Delete(cmdRef);
+            return LE_FAULT;
         }
 
-    } else {
-        LE_WARN("this pattern is not expected");
-        result = LE_FAULT;
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        if (res != LE_OK)
+        {
+            LE_ERROR("Failed to get the response !");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
+
+        rest = firstResponse+strlen("+CPINC: ");
+        int i = 0;
+
+        tokenPtr = strtok_r(rest, ",", &savePtr);
+
+        while ((i < idx) && tokenPtr)
+        {
+            tokenPtr = strtok_r(NULL, ",", &savePtr);
+            i++;
+        }
+
+        if (tokenPtr)
+        {
+            *attemptsPtr = atoi(tokenPtr);
+            le_atClient_Delete(cmdRef);
+            return LE_OK;
+        }
+
+        le_atClient_Delete(cmdRef);
+        return res;
     }
-
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommandDefaultExt
-
-    return result;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -971,11 +815,11 @@ le_result_t pa_sim_GetPINRemainingAttempts
 {
     if      (type==PA_SIM_PIN)
     {
-        return pa_sim_GetRemainingAttempts(2,attemptsPtr);
+        return pa_sim_GetRemainingAttempts(0,attemptsPtr);
     }
     else if (type==PA_SIM_PIN2)
     {
-        return pa_sim_GetRemainingAttempts(3,attemptsPtr);
+        return pa_sim_GetRemainingAttempts(1,attemptsPtr);
     }
     else
     {
@@ -1001,11 +845,11 @@ le_result_t pa_sim_GetPUKRemainingAttempts
 {
     if      (type==PA_SIM_PUK)
     {
-        return pa_sim_GetRemainingAttempts(4,attemptsPtr);
+        return pa_sim_GetRemainingAttempts(2,attemptsPtr);
     }
     else if (type==PA_SIM_PUK2)
     {
-        return pa_sim_GetRemainingAttempts(5,attemptsPtr);
+        return pa_sim_GetRemainingAttempts(3,attemptsPtr);
     }
     else
     {
@@ -1030,42 +874,32 @@ le_result_t pa_sim_ChangePIN
     const pa_sim_Pin_t newcode  ///< [IN] New code
 )
 {
-    atcmdsync_ResultRef_t  resRef = NULL;
-    char atcommand[ATCOMMAND_SIZE] ;
+    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
     if (type==PA_SIM_PIN)
     {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cpwd=\"SC\",%s,%s",oldcode,newcode);
-    } else if (type==PA_SIM_PIN2)
+        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CPWD=\"SC\",%s,%s",oldcode,newcode);
+    }
+    else if (type==PA_SIM_PIN2)
     {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cpwd=\"P2\",%s,%s",oldcode,newcode);
-    } else
+        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CPWD=\"P2\",%s,%s",oldcode,newcode);
+    }
+    else
     {
         return LE_BAD_PARAMETER;
     }
 
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                atcommand,
-                                                &resRef,
-                                                NULL,
-                                                30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);
-        return result;
-    }
-
-    le_sim_States_t simState=LE_SIM_STATE_UNKNOWN;
-    char* line = atcmdsync_GetLine(resRef,0);
-    if (CheckStatus(line,&simState))
-    {
-        ReportStatus(UimSelect,simState);
-    }
-
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommandDefault
-
-    return LE_OK;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -1083,41 +917,32 @@ le_result_t pa_sim_EnablePIN
     const pa_sim_Pin_t code   ///< [IN] code
 )
 {
-    atcmdsync_ResultRef_t  resRef = NULL;
-    char atcommand[ATCOMMAND_SIZE] ;
+    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
     if (type==PA_SIM_PIN)
     {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+clck=\"SC\",1,%s",code);
-    } else if (type==PA_SIM_PIN2)
+        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"at+clck=\"SC\",1,%s",code);
+    }
+    else if (type==PA_SIM_PIN2)
     {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+clck=\"P2\",1,%s",code);
-    } else
+        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"at+clck=\"P2\",1,%s",code);
+    }
+    else
     {
         return LE_BAD_PARAMETER;
     }
 
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                atcommand,
-                                                &resRef,
-                                                NULL,
-                                                30000);
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);
-        return LE_FAULT;
-    }
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    le_sim_States_t simState=LE_SIM_STATE_UNKNOWN;
-    char* line = atcmdsync_GetLine(resRef,0);
-    if (CheckStatus(line,&simState))
-    {
-        ReportStatus(UimSelect,simState);
-    }
-
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommandDefault
-
-    return LE_OK;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -1135,41 +960,30 @@ le_result_t pa_sim_DisablePIN
     const pa_sim_Pin_t code   ///< [IN] code
 )
 {
-    atcmdsync_ResultRef_t  resRef = NULL;
-    char atcommand[ATCOMMAND_SIZE] ;
+    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
     if (type==PA_SIM_PIN)
     {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+clck=\"SC\",0,%s",code);
-    } else if (type==PA_SIM_PIN2)
+        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"at+clck=\"SC\",0,%s",code);
+    }
+    else if (type==PA_SIM_PIN2)
     {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+clck=\"P2\",0,%s",code);
-    } else
+        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"at+clck=\"P2\",0,%s",code);
+    }
+    else
     {
         return LE_BAD_PARAMETER;
     }
 
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                atcommand,
-                                                &resRef,
-                                                NULL,
-                                                30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);
-        return LE_FAULT;
-    }
-
-    le_sim_States_t simState=LE_SIM_STATE_UNKNOWN;
-    char* line = atcmdsync_GetLine(resRef,0);
-    if (CheckStatus(line,&simState))
-    {
-        ReportStatus(UimSelect,simState);
-    }
-
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommandDefault
-
-    return LE_OK;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 

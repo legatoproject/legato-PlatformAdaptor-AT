@@ -45,5 +45,5 @@ cflags:
 
 requires:
 {
-    component: { ${LEGATO_ROOT}/components/atManager }
+    component: { ${LEGATO_ROOT}/components/at }
 }

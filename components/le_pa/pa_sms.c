@@ -16,18 +16,15 @@
 #include "pa_sms_local.h"
 #include "pa_common_local.h"
 
-#include "atManager/inc/atMgr.h"
-#include "atManager/inc/atCmdSync.h"
-#include "atManager/inc/atPorts.h"
+#include "at/inc/le_atClient.h"
 
 
 #define DEFAULT_SMSREF_POOL_SIZE    1
 
 static le_mem_PoolRef_t       SmsRefPoolRef;
-
 static le_event_Id_t          EventUnsolicitedId;
 static le_event_Id_t          EventNewSMSId;
-static le_event_HandlerRef_t  NewSMSHandlerRef=NULL;
+static le_event_HandlerRef_t  NewSMSHandlerRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -46,9 +43,9 @@ static bool Check_smsRefCode
     uint32_t  *msgRef    ///< [OUT] message Reference
 )
 {
-    if (atcmd_CountLineParameter(line))
+    if (le_atClient_cmd_CountLineParameter(line))
     {
-        *msgRef = atoi(atcmd_GetLineParameter(line,3));
+        *msgRef = atoi(le_atClient_cmd_GetLineParameter(line,3));
 
         LE_DEBUG("SMS message reference %d",*msgRef);
         return true;
@@ -70,31 +67,31 @@ static bool Check_smsRefCode
 //--------------------------------------------------------------------------------------------------
 static bool CheckSMSUnsolicited
 (
-    char    *line,    ///< [IN] line to parse
+    char      *line,       ///< [IN] line to parse
     uint32_t  *msgRef      ///< [OUT] Message reference in memory
 )
 {
-    bool result = false;
+    bool res = false;
 
-    if       (FIND_STRING("+CMTI:",line))
+    if (FIND_STRING("+CMTI:",line))
     {
-        result = Check_smsRefCode(line,msgRef);
+        res = Check_smsRefCode(line,msgRef);
     }
-    else  if (FIND_STRING("+CBMI:",line))
+    else if (FIND_STRING("+CBMI:",line))
     {
-        result = Check_smsRefCode(line,msgRef);
+        res = Check_smsRefCode(line,msgRef);
     }
-    else  if (FIND_STRING("+CDSI:",line))
+    else if (FIND_STRING("+CDSI:",line))
     {
-        result = Check_smsRefCode(line,msgRef);
+        res = Check_smsRefCode(line,msgRef);
     }
     else
     {
         LE_DEBUG("this pattern is not expected -%s-",line);
-        result = false;
+        res = false;
     }
 
-    return result;
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -114,8 +111,8 @@ static void ReportMsgRef
     messageIndication.protocol = PA_SMS_PROTOCOL_GSM; // @todo Hard-coded
 
     LE_DEBUG("Send new SMS Event with index %d in memory and protocol %d",
-                messageIndication.msgIndex,
-                messageIndication.protocol);
+             messageIndication.msgIndex,
+             messageIndication.protocol);
     le_event_Report(EventNewSMSId,&messageIndication, sizeof(messageIndication));
 }
 
@@ -130,12 +127,11 @@ static void SMSUnsolHandler
     void* reportPtr
 )
 {
-    atmgr_UnsolResponse_t* unsolPtr = reportPtr;
+    char* unsolPtr = reportPtr;
+
     uint32_t msgIdx;
 
-    LE_DEBUG("Received unsolicited %s",unsolPtr->line);
-
-    if (CheckSMSUnsolicited(unsolPtr->line,&msgIdx))
+    if (CheckSMSUnsolicited(unsolPtr,&msgIdx))
     {
         ReportMsgRef(msgIdx);
     }
@@ -154,12 +150,7 @@ le_result_t pa_sms_Init
     void
 )
 {
-    if (atports_GetInterface(ATPORT_COMMAND)==NULL) {
-        LE_WARN("SMS Module is not initialize in this session");
-        return LE_FAULT;
-    }
-
-    EventUnsolicitedId = le_event_CreateId("SMSEventIdUnsol",sizeof(atmgr_UnsolResponse_t));
+    EventUnsolicitedId = le_event_CreateId("SMSEventIdUnsol",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
     EventNewSMSId = le_event_CreateId("SMSEventIdNewSMS",sizeof(pa_sms_NewMessageIndication_t));
 
     le_event_AddHandler("SMSUnsolHandler",EventUnsolicitedId  ,SMSUnsolHandler);
@@ -183,26 +174,26 @@ le_result_t pa_sms_Init
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_SetNewMsgHandler
 (
-    pa_sms_NewMsgHdlrFunc_t msgHandler ///< [IN] The handler function to handle a new message
-                                         ///       reception.
+    pa_sms_NewMsgHdlrFunc_t msgHandler ///< [IN] The handler function to handle a new message reception.
 )
 {
     LE_DEBUG("Set new SMS message handler");
 
-    if (msgHandler==NULL) {
+    if (msgHandler == NULL)
+    {
         LE_WARN("new SMS message handler is NULL");
         return LE_BAD_PARAMETER;
     }
 
-    if (NewSMSHandlerRef!=NULL)
+    if (NewSMSHandlerRef != NULL)
     {
         LE_WARN("new SMS message handler has already been set");
         return LE_FAULT;
     }
 
     NewSMSHandlerRef = le_event_AddHandler("NewSMSHandler",
-                                         EventNewSMSId,
-                                         (le_event_HandlerFunc_t) msgHandler);
+                                           EventNewSMSId,
+                                           (le_event_HandlerFunc_t) msgHandler);
 
     return LE_OK;
 }
@@ -235,97 +226,91 @@ le_result_t pa_sms_ClearNewMsgHandler
 static void SetNewMsgIndicLocal
 (
     pa_sms_NmiMt_t   mt,     ///< [IN] Result code indication routing for SMS-DELIVER indications.
-    pa_sms_NmiBm_t   bm,     ///< [IN] Rules for storing the received CBMs (Cell Broadcast Message)
-                             ///       types.
+    pa_sms_NmiBm_t   bm,     ///< [IN] Rules for storing the received CBMs (Cell Broadcast Message) types.
     pa_sms_NmiDs_t   ds      ///< [IN] SMS-STATUS-REPORTs routing.
 )
 {
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),EventUnsolicitedId,"+CMTI:");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),EventUnsolicitedId,"+CMT:");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),EventUnsolicitedId,"+CBMI:");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),EventUnsolicitedId,"+CBM:");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),EventUnsolicitedId,"+CDS:");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),EventUnsolicitedId,"+CDSI:");
+    le_atClient_RemoveUnsolicitedResponseHandler(EventUnsolicitedId,"+CMTI:");
+    le_atClient_RemoveUnsolicitedResponseHandler(EventUnsolicitedId,"+CMT:");
+    le_atClient_RemoveUnsolicitedResponseHandler(EventUnsolicitedId,"+CBMI:");
+    le_atClient_RemoveUnsolicitedResponseHandler(EventUnsolicitedId,"+CBM:");
+    le_atClient_RemoveUnsolicitedResponseHandler(EventUnsolicitedId,"+CDS:");
+    le_atClient_RemoveUnsolicitedResponseHandler(EventUnsolicitedId,"+CDSI:");
 
     switch (mt)
     {
-        case PA_SMS_MT_0: {
-            break;}
-        case PA_SMS_MT_1: {
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CMTI:",
-                                           false);
-            break;}
-        case PA_SMS_MT_2: {
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CMT:",
-                                           true);
-            break;}
-        case PA_SMS_MT_3: {
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CMTI:",
-                                           false);
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CMT:",
-                                           true);
-            break;}
-        default: {
+        case PA_SMS_MT_0:
+        {
+            break;
+        }
+        case PA_SMS_MT_1:
+        {
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CMTI:",false);
+            break;
+        }
+        case PA_SMS_MT_2:
+        {
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CMT:",true);
+            break;
+        }
+        case PA_SMS_MT_3:
+        {
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CMTI:",false);
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CMT:",true);
+            break;
+        }
+        default:
+        {
             LE_WARN("mt %d does not exist",mt);
         }
     }
 
     switch (bm)
     {
-        case PA_SMS_BM_0: {
-            break;}
-        case PA_SMS_BM_1: {
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CBMI:",
-                                           false);
-            break;}
-        case PA_SMS_BM_2: {
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CBM:",
-                                           true);
-            break;}
-        case PA_SMS_BM_3: {
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CBMI:",
-                                           false);
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CBM:",
-                                           true);
-            break;}
-        default: {
+        case PA_SMS_BM_0:
+        {
+            break;
+        }
+        case PA_SMS_BM_1:
+        {
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CBMI:",false);
+            break;
+        }
+        case PA_SMS_BM_2:
+        {
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CBM:",true);
+            break;
+        }
+        case PA_SMS_BM_3:
+        {
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CBMI:",false);
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CBM:",true);
+            break;
+        }
+        default:
+        {
             LE_WARN("bm %d does not exist",bm);
         }
     }
 
     switch (ds)
     {
-        case PA_SMS_DS_0: {
-            break;}
-        case PA_SMS_DS_1: {
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CDS:",
-                                           true);
-            break;}
-        case PA_SMS_DS_2: {
-            atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                           EventUnsolicitedId,
-                                           "+CDSI:",
-                                           false);
-            break;}
-        default: {
+        case PA_SMS_DS_0:
+        {
+            break;
+        }
+        case PA_SMS_DS_1:
+        {
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CDS:",true);
+            break;
+        }
+        case PA_SMS_DS_2:
+        {
+            le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,"+CDSI:",false);
+            break;
+        }
+        default:
+        {
             LE_WARN("bm %d does not exist",bm);
         }
     }
@@ -345,23 +330,26 @@ le_result_t pa_sms_SetNewMsgIndic
 (
     pa_sms_NmiMode_t mode,   ///< [IN] Processing of unsolicited result codes.
     pa_sms_NmiMt_t   mt,     ///< [IN] Result code indication routing for SMS-DELIVER indications.
-    pa_sms_NmiBm_t   bm,     ///< [IN] Rules for storing the received CBMs (Cell Broadcast Message)
-                             ///       types.
+    pa_sms_NmiBm_t   bm,     ///< [IN] Rules for storing the received CBMs (Cell Broadcast Message) types.
     pa_sms_NmiDs_t   ds,     ///< [IN] SMS-STATUS-REPORTs routing.
     pa_sms_NmiBfr_t  bfr     ///< [IN] TA buffer of unsolicited result codes mode.
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "\0";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+
 
     SetNewMsgIndicLocal(mt,bm,ds);
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cnmi=%d,%d,%d,%d,%d", mode, mt,bm,ds,bfr);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CNMI=%d,%d,%d,%d,%d", mode, mt,bm,ds,bfr);
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -377,15 +365,22 @@ le_result_t pa_sms_SetNewMsgIndic
 le_result_t pa_sms_GetNewMsgIndic
 (
     pa_sms_NmiMode_t* modePtr,   ///< [OUT] Processing of unsolicited result codes.
-    pa_sms_NmiMt_t*   mtPtr,     ///< [OUT] Result code indication routing for SMS-DELIVER
-                                 ///        indications.
-    pa_sms_NmiBm_t*   bmPtr,     ///< [OUT] Rules for storing the received CBMs (Cell Broadcast
-                                 ///        Message) types.
+    pa_sms_NmiMt_t*   mtPtr,     ///< [OUT] Result code indication routing for SMS-DELIVER indications.
+    pa_sms_NmiBm_t*   bmPtr,     ///< [OUT] Rules for storing the received CBMs (Cell Broadcast Message) types.
     pa_sms_NmiDs_t*   dsPtr,     ///< [OUT] SMS-STATUS-REPORTs routing.
     pa_sms_NmiBfr_t*  bfrPtr     ///< [OUT] Terminal Adaptor buffer of unsolicited result codes mode.
 )
 {
-    le_result_t result = LE_FAULT;
+    const char*          commandPtr   = "AT+CNMI?";
+    const char*          interRespPtr = "+CNMI:";
+    const char*          respPtr      = "\0";
+    char*                tokenPtr     = NULL;
+    char*                rest         = NULL;
+    char*                savePtr      = NULL;
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+    char                 firstResponse[50];
+    char                 finalResponse[50];
 
     if (!modePtr && !mtPtr && !bmPtr && !dsPtr && !bfrPtr)
     {
@@ -393,50 +388,37 @@ le_result_t pa_sms_GetNewMsgIndic
         return LE_BAD_PARAMETER;
     }
 
-    const char* interRespPtr[] = {"+CNMI:",NULL};
-    atcmdsync_ResultRef_t  resRef = NULL;
+    le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+cnmi?",
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
-
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef); // release atcmdsync_SendCommandDefaultExt
-        return result;
-    }
-
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    if (atcmdsync_GetNumLines(resRef) == 2)
+    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,50);
+    if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
     {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(resRef,0);
-        uint32_t numParam = atcmd_CountLineParameter(line);
-        // it parse just the first line because of '\0'
-
-        if ((numParam==6) && (FIND_STRING("+CNMI:",atcmd_GetLineParameter(line,1))))
-        {
-            *modePtr   = (pa_sms_NmiMode_t)atoi(atcmd_GetLineParameter(line,2));
-            *mtPtr     = (pa_sms_NmiMt_t)  atoi(atcmd_GetLineParameter(line,3));
-            *bmPtr     = (pa_sms_NmiBm_t)  atoi(atcmd_GetLineParameter(line,4));
-            *dsPtr     = (pa_sms_NmiDs_t)  atoi(atcmd_GetLineParameter(line,5));
-            *bfrPtr    = (pa_sms_NmiBfr_t) atoi(atcmd_GetLineParameter(line,6));
-
-            result = LE_OK;
-        } else {
-            LE_WARN("this pattern is not expected");
-            result = LE_FAULT;
-        }
-    } else {
-        LE_WARN("this pattern is not expected");
-        result = LE_FAULT;
+        LE_ERROR("Function failed !");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommand
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
 
-    return result;
+    rest = firstResponse+strlen("+CNMI: ");
+
+    tokenPtr = strtok_r(rest, ",", &savePtr);
+    *modePtr = (pa_sms_NmiMode_t)atoi(tokenPtr);
+
+    tokenPtr = strtok_r(NULL, ",", &savePtr);
+    *mtPtr   = (pa_sms_NmiMt_t)  atoi(tokenPtr);
+
+    tokenPtr = strtok_r(NULL, ",", &savePtr);
+    *bmPtr   = (pa_sms_NmiBm_t)  atoi(tokenPtr);
+
+    tokenPtr = strtok_r(NULL, ",", &savePtr);
+    *dsPtr   = (pa_sms_NmiDs_t)  atoi(tokenPtr);
+
+    tokenPtr = strtok_r(NULL, ",", &savePtr);
+    *bfrPtr  = (pa_sms_NmiBfr_t) atoi(tokenPtr);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -453,15 +435,18 @@ le_result_t pa_sms_SetMsgFormat
     le_sms_Format_t   format   ///< [IN] The preferred message format.
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "\0";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cmgf=%d",format);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CMGF=%d",format);
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -483,17 +468,97 @@ int32_t pa_sms_SendPduMsg
     pa_sms_SendingErrCode_t *errorCode   ///< [OUT] The error code.
 )
 {
-    int32_t result = LE_FAULT;
-    atcmd_Ref_t atReqRef;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    char atcommand[ATCOMMAND_SIZE] ;
+//     int32_t result = LE_FAULT;
+//     le_atClient_CmdRef_t atReqRef;
+//     le_atClient_CmdSyncResultRef_t  resRef = NULL;
+//     char atcommand[LE_ATCLIENT_CMD_SIZE_MAX_LEN] ;
+//
+//     const char* interRespPtr[] = {"+CMGS:",NULL};
+//     const char* finalRespOkPtr[] = {"OK",NULL};
+//     const char* finalRespKoPtr[] = {"ERROR","+CME ERROR:","+CMS ERROR:","TIMEOUT",NULL};
+//
+//     char hexString[LE_SMS_PDU_MAX_BYTES*2+1]={0};
+//     uint32_t hexStringSize;
+//
+//     if (!dataPtr)
+//     {
+//         LE_WARN("One parameter is NULL");
+//         return LE_BAD_PARAMETER;
+//     }
+//
+//     snprintf(atcommand,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"at+cmgs=%d",length);
+//
+//     // TODO: check the smsc field !
+//     hexStringSize = le_hex_BinaryToString(dataPtr,length+1,hexString,sizeof(hexString));
+//
+//     atReqRef = CreateCmd();
+//     AddCommand(atReqRef,atcommand,false);
+//     AddData(atReqRef,hexString,hexStringSize);
+//     SetTimer(atReqRef,30000,GetTimerExpiryHandler());
+//     AddIntermediateResp(atReqRef,GetIntermediateEventId(),interRespPtr);
+//     AddFinalResp(atReqRef,GetFinalEventId(),finalRespOkPtr);
+//     AddFinalResp(atReqRef,GetFinalEventId(),finalRespKoPtr);
+//
+//     resRef = SendCommand(AllPorts[ATPORT_COMMAND],atReqRef);
+//
+//     result = le_atClient_CheckCommandResult(resRef,finalRespOkPtr,finalRespKoPtr);
+//     if ( result != LE_OK )
+//     {
+//         le_mem_Release(atReqRef);  // Release le_atClient_cmdsync_SetCommand
+//         le_mem_Release(resRef);     // Release SendCommand
+//         return result;
+//     }
+//     // If there is more than one line then it mean that the command is OK so the first line is
+//     // the intermediate one
+//     // the intermediate one
+//     if (le_atClient_GetNumLines(resRef) == 2)
+//     {
+//         // it parse just the first line because of '\0'
+//         char* line = GetLine(resRef,0);
+//         uint32_t numParam = le_atClient_cmd_CountLineParameter(line);
+//         // it parse just the first line because of '\0'
+//
+//         if (FIND_STRING("+CMGS:",le_atClient_cmd_GetLineParameter(line,1)))
+//         {
+//             if (numParam==2)
+//             {
+//                 result=atoi(le_atClient_cmd_GetLineParameter(line,2));
+//             } else
+//             {
+//                 LE_WARN("this pattern is not expected");
+//                 result = LE_FAULT;
+//             }
+//         } else {
+//             LE_WARN("this pattern is not expected");
+//             result = LE_FAULT;
+//         }
+//     }
+//
+//     le_mem_Release(atReqRef);  // Release le_atClient_cmdsync_SetCommand
+//     le_mem_Release(resRef);     // Release SendCommand
+//
+//     return result;
 
-    const char* interRespPtr[] = {"+CMGS:",NULL};
-    const char* finalRespOkPtr[] = {"OK",NULL};
-    const char* finalRespKoPtr[] = {"ERROR","+CME ERROR:","+CMS ERROR:","TIMEOUT",NULL};
 
-    char hexString[LE_SMS_PDU_MAX_BYTES*2+1]={0};
-    uint32_t hexStringSize;
+
+
+
+
+
+
+/*
+    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char* interRespPtr   = "+CMGS:";
+    const char* respPtr        = "OK|ERROR|+CME ERROR:|+CMS ERROR:";
+
+    char* tokenPtr              = NULL;
+    char* rest                  = NULL;
+    char* savePtr               = NULL;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+    int32_t result;
+    char firstResponse[COMMAND_LEN_MAX];
+    char finalResponse[COMMAND_LEN_MAX];
 
     if (!dataPtr)
     {
@@ -501,59 +566,83 @@ int32_t pa_sms_SendPduMsg
         return LE_BAD_PARAMETER;
     }
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cmgs=%d",length);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CMGS=%d",length);
 
     // TODO: check the smsc field !
     hexStringSize = le_hex_BinaryToString(dataPtr,length+1,hexString,sizeof(hexString));
 
-    atReqRef = atcmdsync_PrepareStandardCommand(atcommand,
-                                                    interRespPtr,
-                                                    finalRespOkPtr,
-                                                    finalRespKoPtr,
-                                                    30000);
-
-    // Add data into the resqest
-    atcmd_AddData(atReqRef,hexString,hexStringSize);
-
-    resRef    = atcmdsync_SendCommand(atports_GetInterface(ATPORT_COMMAND),atReqRef);
-
-    result = atcmdsync_CheckCommandResult(resRef,finalRespOkPtr,finalRespKoPtr);
-    if ( result != LE_OK )
+    cmdRef = le_atClient_Create();
+    LE_DEBUG("New command ref (%p) created",cmdRef);
+    if(cmdRef == NULL)
     {
-        le_mem_Release(atReqRef);  // Release atcmdsync_SetCommand
-        le_mem_Release(resRef);     // Release atcmdsync_SendCommand
-        return result;
+        return;
     }
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    // the intermediate one
-    if (atcmdsync_GetNumLines(resRef) == 2)
+    res = le_atClient_SetCommand(cmdRef,command);
+    if (res != LE_OK)
     {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(resRef,0);
-        uint32_t numParam = atcmd_CountLineParameter(line);
-        // it parse just the first line because of '\0'
+        le_atClient_Delete(cmdRef);
+        LE_ERROR("Failed to set the command !");
+        return;
+    }
+    res = le_atClient_SetData(cmdRef,hexString,hexStringSize);
+    if (res != LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+        LE_ERROR("Failed to set data !");
+        return;
+    }
+    res = le_atClient_SetIntermediateResponse(cmdRef,interRespPtr);
+    if (res != LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+        LE_ERROR("Failed to set intermediate response !");
+        return;
+    }
+    res = le_atClient_SetFinalResponse(cmdRef,respPtr);
+    if (res != LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+        LE_ERROR("Failed to set final response !");
+        return;
+    }
+    res = le_atClient_Send(cmdRef);
+    if (res != LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+        LE_ERROR("Failed to send !");
+        return;
+    }
 
-        if (FIND_STRING("+CMGS:",atcmd_GetLineParameter(line,1)))
+
+    if (res != LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+        return;
+    }
+    else
+    {
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
-            if (numParam==2)
-            {
-                result=atoi(atcmd_GetLineParameter(line,2));
-            } else
-            {
-                LE_WARN("this pattern is not expected");
-                result = LE_FAULT;
-            }
-        } else {
-            LE_WARN("this pattern is not expected");
-            result = LE_FAULT;
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return;
         }
+
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,COMMAND_LEN_MAX);
+        if (res != LE_OK)
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return;
+        }
+
     }
 
-    le_mem_Release(atReqRef);  // Release atcmdsync_SetCommand
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommand
+    le_atClient_Delete(cmdRef);
+    return result;*/
 
-    return result;
+    return 0;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -574,80 +663,82 @@ le_result_t pa_sms_RdPDUMsgFromMem
     pa_sms_Pdu_t*       msgPtr      ///< [OUT] The message.
 )
 {
-    int32_t result = LE_FAULT;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    char atcommand[ATCOMMAND_SIZE];
-    const char* interRespPtr[] = {"+CMGR:",NULL};
-    const char* finalRespOkPtr[] = {"OK",NULL};
-    const char* finalRespKoPtr[] = {"ERROR","+CME ERROR:","+CMS ERROR:","TIMEOUT",NULL};
-
-    if (!msgPtr)
-    {
-        LE_ERROR("One parameter is NULL");
-        return LE_BAD_PARAMETER;
-    }
-
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cmgr=%d",index);
-
-    atcmd_Ref_t atReqRef = atcmdsync_PrepareStandardCommand(atcommand,
-                                                    interRespPtr,
-                                                    finalRespOkPtr,
-                                                    finalRespKoPtr,
-                                                    30000);
-
-    atcmd_AddCommand    (atReqRef,atcommand,true);
-
-    resRef = atcmdsync_SendCommand(atports_GetInterface(ATPORT_COMMAND),atReqRef);
-
-    result = atcmdsync_CheckCommandResult(resRef,finalRespOkPtr,finalRespKoPtr);
-    if ( result != LE_OK )
-    {
-        le_mem_Release(atReqRef);  // Release atcmdsync_SetCommand
-        le_mem_Release(resRef);     // Release atcmdsync_SendCommand
-        return result;
-    }
-
-    // there should be 3 line:
-    // first : +CMGR: ...
-    // second:  pdu data
-    if (atcmdsync_GetNumLines(resRef) == 3)
-    {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(resRef,0);
-        atcmd_CountLineParameter(line);
-
-        // Check is the +CMGR intermediate response is in good format
-        if (FIND_STRING("+CMGR:",atcmd_GetLineParameter(line,1)))
-        {
-            const char* pduPtr = atcmdsync_GetLine(resRef,1);
-
-            msgPtr->status=(le_sms_Status_t)atoi(atcmd_GetLineParameter(line,2));
-
-            int32_t dataSize = le_hex_StringToBinary(pduPtr,strlen(pduPtr),msgPtr->data,LE_SMS_PDU_MAX_BYTES);
-            if ( dataSize < 0)
-            {
-                LE_ERROR("Message cannot be converted");
-                result = LE_FAULT;
-            }
-            else
-            {
-                LE_DEBUG("Fill message in binary mode");
-                msgPtr->dataLen = dataSize;
-                result = LE_OK;
-            }
-        } else {
-            LE_WARN("this pattern is not expected");
-            result = LE_FAULT;
-        }
-    } else {
-        LE_WARN("this pattern is not expected");
-        result = LE_FAULT;
-    }
-
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommand
-    le_mem_Release(atReqRef);   // Release atcmd_Create
-
-    return result;
+//     int32_t result = LE_FAULT;
+//     le_atClient_CmdRef_t atReqRef;
+//     le_atClient_CmdSyncResultRef_t  resRef = NULL;
+//     char atcommand[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+//     const char* interRespPtr[] = {"+CMGR:",NULL};
+//     const char* finalRespOkPtr[] = {"OK",NULL};
+//     const char* finalRespKoPtr[] = {"ERROR","+CME ERROR:","+CMS ERROR:","TIMEOUT",NULL};
+//
+//     if (!msgPtr)
+//     {
+//         LE_ERROR("One parameter is NULL");
+//         return LE_BAD_PARAMETER;
+//     }
+//
+//     snprintf(atcommand,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"at+cmgr=%d",index);
+//
+//     atReqRef = CreateCmd();
+//     AddCommand(atReqRef,atcommand,true);
+//     AddData(atReqRef,NULL,0);
+//     SetTimer(atReqRef,30000,GetTimerExpiryHandler());
+//     AddIntermediateResp(atReqRef,GetIntermediateEventId(),interRespPtr);
+//     AddFinalResp(atReqRef,GetFinalEventId(),finalRespOkPtr);
+//     AddFinalResp(atReqRef,GetFinalEventId(),finalRespKoPtr);
+//
+//     resRef = SendCommand(AllPorts[ATPORT_COMMAND],atReqRef);
+//
+//     result = le_atClient_CheckCommandResult(resRef,finalRespOkPtr,finalRespKoPtr);
+//     if ( result != LE_OK )
+//     {
+//         le_mem_Release(atReqRef);  // Release le_atClient_cmdsync_SetCommand
+//         le_mem_Release(resRef);     // Release SendCommand
+//         return result;
+//     }
+//
+//     // there should be 3 line:
+//     // first : +CMGR: ...
+//     // second:  pdu data
+//     if (le_atClient_GetNumLines(resRef) == 3)
+//     {
+//         // it parse just the first line because of '\0'
+//         char* line = GetLine(resRef,0);
+//         le_atClient_cmd_CountLineParameter(line);
+//
+//         // Check is the +CMGR intermediate response is in good format
+//         if (FIND_STRING("+CMGR:",le_atClient_cmd_GetLineParameter(line,1)))
+//         {
+//             const char* pduPtr = GetLine(resRef,1);
+//
+//             msgPtr->status=(le_sms_Status_t)atoi(le_atClient_cmd_GetLineParameter(line,2));
+//
+//             int32_t dataSize = le_hex_StringToBinary(pduPtr,strlen(pduPtr),msgPtr->data,LE_SMS_PDU_MAX_BYTES);
+//             if ( dataSize < 0)
+//             {
+//                 LE_ERROR("Message cannot be converted");
+//                 result = LE_FAULT;
+//             }
+//             else
+//             {
+//                 LE_DEBUG("Fill message in binary mode");
+//                 msgPtr->dataLen = dataSize;
+//                 result = LE_OK;
+//             }
+//         } else {
+//             LE_WARN("this pattern is not expected");
+//             result = LE_FAULT;
+//         }
+//     } else {
+//         LE_WARN("this pattern is not expected");
+//         result = LE_FAULT;
+//     }
+//
+//     le_mem_Release(resRef);     // Release SendCommand
+//     le_mem_Release(atReqRef);   // Release CreateCmd
+//
+//     return result;
+    return LE_FAULT;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -672,11 +763,16 @@ le_result_t pa_sms_ListMsgFromMem
     pa_sms_Storage_t    storage     ///< [IN] SMS Storage used.
 )
 {
-    le_result_t result = LE_FAULT;
-    uint32_t  cpt;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    char atcommand[ATCOMMAND_SIZE] ;
-    const char* interRespPtr[] = {"+CMGL:",NULL};
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "+CMGL:";
+    const char*          respPtr      = "\0";
+    char*                tokenPtr     = NULL;
+    char*                rest         = NULL;
+    char*                savePtr      = NULL;
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+    char                 response[COMMAND_LEN_MAX];
+    char                 finalResponse[COMMAND_LEN_MAX];
 
     // TODO: storage option to manage
 
@@ -686,51 +782,78 @@ le_result_t pa_sms_ListMsgFromMem
         return LE_BAD_PARAMETER;
     }
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cmgl=%d",status);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CMGL=%d",status);
 
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    atcommand,
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);     // release atcmdsync_SendCommandDefaultExt
-        return result;
-    }
-
-    size_t numberOfLine = atcmdsync_GetNumLines(resRef);
-    for (cpt=0,*numPtr=0;cpt<numberOfLine;cpt++)
+    if (res == LE_OK)
     {
-        char* line = atcmdsync_GetLine(resRef,cpt);
-        // it parse just the first line because of '\0'
-        uint32_t  numParam = atcmd_CountLineParameter(line);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        if (res != LE_OK)
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
 
-        if (FIND_STRING("OK",atcmd_GetLineParameter(line,1)))
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,response,50);
+
+        // CODE A REVOIR
+        uint32_t cpt = 0;
+        rest = response+strlen("+CMGL: ");
+        tokenPtr = strtok_r(rest, ",", &savePtr);
+        idxPtr[cpt]=atoi(tokenPtr);
+
+
+        while(strcmp(response,"OK") != 0)
         {
-            result = LE_OK;
-            break;
-        }
-        else
-        {
-        // Check is the +CMGL intermediate response is in good format
-            if ((numParam>2) && (FIND_STRING("+CMGL:",atcmd_GetLineParameter(line,1))))
-        {
-            idxPtr[cpt]=atoi(atcmd_GetLineParameter(line,2));
             (*numPtr)++;
-        }
-        else
-        {
-                LE_WARN("this pattern is not expected");
-                result = LE_FAULT;
-                break;
-            }
+            cpt += 1;
+            le_atClient_GetNextIntermediateResponse(cmdRef,response,50);
+            rest = response+strlen("+CMGL: ");
+            tokenPtr = strtok_r(rest, ",", &savePtr);
+            idxPtr[cpt]=atoi(tokenPtr);
         }
     }
 
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommand
+    le_atClient_Delete(cmdRef);
+    return res;
 
-    return result;
+
+
+
+//     size_t numberOfLine = le_atClient_GetNumLines(resRef);
+//     for (cpt=0,*numPtr=0;cpt<numberOfLine;cpt++)
+//     {
+//         char* line = GetLine(resRef,cpt);
+//         // it parse just the first line because of '\0'
+//         uint32_t  numParam = le_atClient_cmd_CountLineParameter(line);
+//
+//         if (FIND_STRING("OK",le_atClient_cmd_GetLineParameter(line,1)))
+//         {
+//             result = LE_OK;
+//             break;
+//         }
+//         else
+//         {
+//         // Check is the +CMGL intermediate response is in good format
+//             if ((numParam>2) && (FIND_STRING("+CMGL:",le_atClient_cmd_GetLineParameter(line,1))))
+//             {
+//                 idxPtr[cpt]=atoi(le_atClient_cmd_GetLineParameter(line,2));
+//                 (*numPtr)++;
+//             }
+//             else
+//             {
+//                 LE_WARN("this pattern is not expected");
+//                 result = LE_FAULT;
+//                 break;
+//             }
+//         }
+//     }
+//
+//     le_mem_Release(resRef);     // Release SendCommand
+//
+//     return result;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -750,17 +873,18 @@ le_result_t pa_sms_DelMsgFromMem
     pa_sms_Storage_t    storage   ///< [IN] SMS Storage used..
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "\0";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
 
-    // TODO: storage option to manage
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CMGD=%d,0",index);
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cmgd=%d,0",index);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -779,11 +903,16 @@ le_result_t pa_sms_DelAllMsg
 {
     // TODO: storage option to manage
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  "at+cmgd=0,4",
-                                  NULL,
-                                  NULL,
-                                  30000);
+    const char*          commandPtr   = "AT+CMGD=0,4";
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "\0";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -800,11 +929,16 @@ le_result_t pa_sms_SaveSettings
     void
 )
 {
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  "at+csas",
-                                  NULL,
-                                  NULL,
-                                  30000);
+    const char*          commandPtr   = "AT+CSAS";
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "\0";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -821,11 +955,16 @@ le_result_t pa_sms_RestoreSettings
     void
 )
 {
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  "at+cres",
-                                  NULL,
-                                  NULL,
-                                  30000);
+    const char*          commandPtr   = "AT+CRES";
+     const char*         interRespPtr = "\0";
+    const char*          respPtr      = "\0";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -845,8 +984,13 @@ le_result_t pa_sms_ChangeMessageStatus
     pa_sms_Storage_t    storage   ///< [IN] SMS Storage used..
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
     // TODO: storage option to manage
+
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "\0";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
 
     switch (status)
     {
@@ -865,13 +1009,13 @@ le_result_t pa_sms_ChangeMessageStatus
         default:
             return LE_FAULT;
     }
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+wmsc=%d,%d", index, status);
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+WMSC=%d,%d", index, status);
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -956,13 +1100,8 @@ le_result_t pa_sms_DeactivateCellBroadcast
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_AddCellBroadcastIds
 (
-    uint16_t fromId,
-        ///< [IN]
-        ///< Starting point of the range of cell broadcast message identifier.
-
-    uint16_t toId
-        ///< [IN]
-        ///< Ending point of the range of cell broadcast message identifier.
+    uint16_t fromId,    ///< [IN] Starting point of the range of cell broadcast message identifier.
+    uint16_t toId       ///< [IN] Ending point of the range of cell broadcast message identifier.
 )
 {
     return LE_FAULT;
@@ -979,13 +1118,8 @@ le_result_t pa_sms_AddCellBroadcastIds
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_RemoveCellBroadcastIds
 (
-    uint16_t fromId,
-        ///< [IN]
-        ///< Starting point of the range of cell broadcast message identifier.
-
-    uint16_t toId
-        ///< [IN]
-        ///< Ending point of the range of cell broadcast message identifier.
+    uint16_t fromId,    ///< [IN] Starting point of the range of cell broadcast message identifier.
+    uint16_t toId       ///< [IN] Ending point of the range of cell broadcast message identifier.
 )
 {
     return LE_FAULT;
@@ -1002,16 +1136,11 @@ le_result_t pa_sms_RemoveCellBroadcastIds
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_AddCdmaCellBroadcastServices
 (
-    le_sms_CdmaServiceCat_t serviceCat,
-        ///< [IN]
-        ///< Service category assignment. Reference to 3GPP2 C.R1001-D
-        ///< v1.0 Section 9.3.1 Standard Service Category Assignments.
-
-    le_sms_Languages_t language
-        ///< [IN]
-        ///< Language Indicator. Reference to
-        ///< 3GPP2 C.R1001-D v1.0 Section 9.2.1 Language Indicator
-        ///< Value Assignments
+    le_sms_CdmaServiceCat_t serviceCat, ///< [IN] Service category assignment. Reference to 3GPP2 C.R1001-D
+                                        ///       v1.0 Section 9.3.1 Standard Service Category Assignments.
+    le_sms_Languages_t language         ///< [IN] Language Indicator. Reference to
+                                        ///       3GPP2 C.R1001-D v1.0 Section 9.2.1 Language Indicator
+                                        ///       Value Assignments
 )
 {
     return LE_FAULT;
@@ -1028,16 +1157,11 @@ le_result_t pa_sms_AddCdmaCellBroadcastServices
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_RemoveCdmaCellBroadcastServices
 (
-    le_sms_CdmaServiceCat_t serviceCat,
-        ///< [IN]
-        ///< Service category assignment. Reference to 3GPP2 C.R1001-D
-        ///< v1.0 Section 9.3.1 Standard Service Category Assignments.
-
-    le_sms_Languages_t language
-        ///< [IN]
-        ///< Language Indicator. Reference to
-        ///< 3GPP2 C.R1001-D v1.0 Section 9.2.1 Language Indicator
-        ///< Value Assignments
+    le_sms_CdmaServiceCat_t serviceCat, ///< [IN] Service category assignment. Reference to 3GPP2 C.R1001-D
+                                        /// v1.0 Section 9.3.1 Standard Service Category Assignments.
+    le_sms_Languages_t language         ///< [IN] Language Indicator. Reference to
+                                        ///       3GPP2 C.R1001-D v1.0 Section 9.2.1 Language Indicator
+                                        ///       Value Assignments
 )
 {
     return LE_FAULT;

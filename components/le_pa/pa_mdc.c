@@ -12,8 +12,7 @@
 #include "pa_mdc.h"
 #include "pa_common_local.h"
 
-#include "atManager/inc/atCmdSync.h"
-#include "atManager/inc/atPorts.h"
+#include "at/inc/le_atClient.h"
 
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -113,15 +112,18 @@ static le_result_t AttachGPRS
     bool toAttach   ///< [IN] boolean value
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cgatt=%d",toAttach);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGATT=%d",toAttach);
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -135,18 +137,21 @@ static le_result_t AttachGPRS
 static le_result_t ActivateContext
 (
     uint32_t profileIndex,    ///< [IN] The profile to read
-    bool toActivate           ///< [IN] activation boolean
+    bool     toActivate       ///< [IN] activation boolean
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cgact=%d,%d",toActivate,profileIndex);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGACT=%d,%d",toActivate,profileIndex);
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -162,28 +167,30 @@ static le_result_t SetIndicationHandler
     uint32_t  mode  ///< Unsolicited result mode
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cgerep=%d",mode);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGEREP=%d",mode);
 
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                atcommand,
-                                                NULL,
-                                                NULL,
-                                                30000);
-    if ( result == LE_OK )
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    if (res == LE_OK)
     {
-    if (mode) {
-        atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   UnsolicitedEvent,
-                                   "+CGEV:",
-                                   false);
-    } else {
-            atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),UnsolicitedEvent,"+CGEV:");
+        if (mode)
+        {
+            le_atClient_AddUnsolicitedResponseHandler(UnsolicitedEvent,"+CGEV:",false);
+        }
+        else
+        {
+            le_atClient_RemoveUnsolicitedResponseHandler(UnsolicitedEvent,"+CGEV:");
         }
     }
 
-    return result;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -197,22 +204,22 @@ static void CGEVUnsolHandler
     void* reportPtr
 )
 {
-    atmgr_UnsolResponse_t* unsolPtr = reportPtr;
-    uint32_t  numParam=0;
-    pa_mdc_SessionStateData_t *sessionStatePtr=NULL;
+    char* unsolPtr = reportPtr;
 
-    LE_DEBUG("Handler received -%s-",unsolPtr->line);
+    uint32_t                        numParam        = 0;
+    pa_mdc_SessionStateData_t*      sessionStatePtr = NULL;
 
-    if ( ( FIND_STRING("+CGEV: NW DEACT", unsolPtr->line) )
+    if ( ( FIND_STRING("+CGEV: NW DEACT", unsolPtr) )
         ||
-         ( FIND_STRING("+CGEV: ME DEACT", unsolPtr->line) )
+         ( FIND_STRING("+CGEV: ME DEACT", unsolPtr) )
        )
     {
-        numParam = atcmd_CountLineParameter(unsolPtr->line);
+        numParam = le_atClient_cmd_CountLineParameter(unsolPtr);
 
-        if (numParam == 4) {
+        if (numParam == 4)
+        {
             sessionStatePtr = le_mem_ForceAlloc(NewSessionStatePool);
-            sessionStatePtr->profileIndex = atoi(atcmd_GetLineParameter(unsolPtr->line,4));
+            sessionStatePtr->profileIndex = atoi(le_atClient_cmd_GetLineParameter(unsolPtr,4));
             sessionStatePtr->newState = LE_MDC_DISCONNECTED;
 
             SetCurrentDataSessionIndex(INVALID_PROFILE_INDEX);
@@ -220,8 +227,10 @@ static void CGEVUnsolHandler
             LE_DEBUG("Send Event for %d with state %d",
                         sessionStatePtr->profileIndex,sessionStatePtr->newState);
             le_event_ReportWithRefCounting(NewSessionStateEvent,sessionStatePtr);
-        } else {
-            LE_WARN("this Response pattern is not expected -%s-",unsolPtr->line);
+        }
+        else
+        {
+            LE_WARN("this Response pattern is not expected -%s-",unsolPtr);
         }
     }
 }
@@ -239,12 +248,13 @@ static le_result_t SetPPPPort
     bool enable
 )
 {
-    LE_DEBUG("PPP Port %s",(enable==true)?"Enable":"Disable");
-    if ( enable ) {
-        atmgr_StartInterface(atports_GetInterface(ATPORT_PPP));
-    } else {
-        atmgr_StopInterface(atports_GetInterface(ATPORT_PPP));
-    }
+//     le_atClient_ports_t port = ATPORT_PPP;
+//     LE_DEBUG("PPP Port %s",(enable==true)?"Enable":"Disable");
+//     if ( enable ) {
+//         le_atClient_StartInterface(port);
+//     } else {
+//         le_atClient_StopInterface(port);
+//     }
 
     return LE_OK;
 }
@@ -262,26 +272,31 @@ static le_result_t StartPDPConnection
     uint32_t profileIndex    ///< [IN] The profile identifier
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
-    atcmd_Ref_t atReqRef=NULL;
-    atcmdsync_ResultRef_t  atresRef;
-    const char* finalRespOkPtr[] = { "CONNECT" , NULL };
-    const char* finalRespKoPtr[] = { "NO CARRIER", "TIMEOUT", NULL};
-
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"ATD*99***%d#",profileIndex);
-
-    atReqRef = atcmdsync_PrepareStandardCommand(atcommand,
-                                                    NULL,
-                                                    finalRespOkPtr,
-                                                    finalRespKoPtr,
-                                                    30000);
-    atresRef = atcmdsync_SendCommand(atports_GetInterface(ATPORT_PPP),atReqRef);
-    le_result_t result = atcmdsync_CheckCommandResult(atresRef,finalRespOkPtr,finalRespKoPtr);
-
-    le_mem_Release(atReqRef);
-    le_mem_Release(atresRef);
-
-    return result;
+//     char atcommand[LE_ATCLIENT_CMD_SIZE_MAX_LEN] ;
+//     le_atClient_CmdRef_t atReqRef=NULL;
+//     le_atClient_CmdSyncResultRef_t  atresRef;
+//     const char* finalRespOkPtr[] = { "CONNECT" , NULL };
+//     const char* finalRespKoPtr[] = { "NO CARRIER", "TIMEOUT", NULL};
+//
+//     snprintf(atcommand,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"ATD*99***%d#",profileIndex);
+//
+//     atReqRef = CreateCmd();
+//     AddCommand(atReqRef,atcommand,false);
+//     AddData(atReqRef,NULL,0);
+//     SetTimer(atReqRef,30000,GetTimerExpiryHandler());
+//     AddIntermediateResp(atReqRef,GetIntermediateEventId(),NULL);
+//     AddFinalResp(atReqRef,GetFinalEventId(),finalRespOkPtr);
+//     AddFinalResp(atReqRef,GetFinalEventId(),finalRespKoPtr);
+//
+//     atresRef = SendCommand(le_atClient_GetInterface(ATPORT_PPP),atReqRef);
+//
+//     le_result_t result = le_atClient_CheckCommandResult(atresRef,finalRespOkPtr,finalRespKoPtr);
+//
+//     le_mem_Release(atReqRef);
+//     le_mem_Release(atresRef);
+//
+//     return result;
+    return LE_FAULT;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -297,11 +312,16 @@ static le_result_t StopPDPConnection
 (
 )
 {
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  "ATGH",
-                                  NULL,
-                                  NULL,
-                                  30000);
+    const char*          commandPtr   = "ATGH";
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -321,13 +341,14 @@ static le_result_t StartPPPInterface
     if ( pid == -1)
     {
         return LE_FAULT;
-    } else if ( pid == 0) // child process
+    }
+    else if ( pid == 0) // child process
     {
         char* args[] = {
             "pppd",     /* argv[0], programme name. */
             "usepeerdns",
             "updetach",
-            AT_PPP,
+            "/dev/ttyPPP",
             NULL      /* list of argument must finished by NULL.  */
         };
 
@@ -339,22 +360,30 @@ static le_result_t StartPPPInterface
         execvp("pppd", args);
         return 99;
 
-    } else {
+    }
+    else
+    {
         int statchild;
         wait(&statchild); // wait for child to finished
-        if (WIFEXITED(statchild)) {
+
+        if (WIFEXITED(statchild))
+        {
             LE_DEBUG("Child's exit code %d\n", WEXITSTATUS(statchild));
-            if (WEXITSTATUS(statchild) == 0) {
+
+            if (WEXITSTATUS(statchild) == 0)
+            {
                 // Remove the NO CARRIER unsolicited
-                atmgr_UnSubscribeUnsolReq (atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"NO CARRIER");
+                le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"NO CARRIER");
 
                 return LE_OK;
-            } else
+            }
+            else
             {
                 return LE_FAULT;
             }
         }
-        else {
+        else
+        {
             LE_WARN("Child did not terminate with exit\n");
             return LE_FAULT;
         }
@@ -414,14 +443,13 @@ static void MDCInternalHandler
     void* reportPtr
 )
 {
-    atmgr_UnsolResponse_t* unsolPtr = reportPtr;
+    char* unsolPtr = reportPtr;
 
-    LE_DEBUG("Handler received -%s-",unsolPtr->line);
 
-    if ( FIND_STRING("NO CARRIER", unsolPtr->line) )
+    if ( FIND_STRING("NO CARRIER", unsolPtr) )
     {
         SetCurrentDataSessionIndex(INVALID_PROFILE_INDEX);
-        atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"NO CARRIER");
+        le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"NO CARRIER");
     }
 }
 
@@ -439,21 +467,11 @@ le_result_t pa_mdc_Init
     void
 )
 {
-    if (atports_GetInterface(ATPORT_COMMAND)==NULL) {
-        LE_WARN("DATA Module is not initialize in this session");
-        return LE_FAULT;
-    }
-
-    if (atports_GetInterface(ATPORT_PPP)==false) {
-        LE_WARN("PPP Module is not initialize in this session");
-        return LE_FAULT;
-    }
-
     NewSessionStateEvent = le_event_CreateIdWithRefCounting("NewSessionStateEvent");
-    UnsolicitedEvent     = le_event_CreateId("SessionUnsolicitedEvent",sizeof(atmgr_UnsolResponse_t));
+    UnsolicitedEvent     = le_event_CreateId("SessionUnsolicitedEvent",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
     NewSessionStatePool  = le_mem_CreatePool("NewSessionStatePool", sizeof(pa_mdc_SessionStateData_t));
 
-    InternalEventCall = le_event_CreateId("MDCInternalEventCall",sizeof(atmgr_UnsolResponse_t));
+    InternalEventCall = le_event_CreateId("MDCInternalEventCall",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
     le_event_AddHandler("MDCUnsolHandler",InternalEventCall  ,MDCInternalHandler);
 
     // set unsolicited +CGEV to Register our own handler.
@@ -478,8 +496,7 @@ le_result_t pa_mdc_GetDefaultProfileIndex
     uint32_t* profileIndexPtr
 )
 {
-    *profileIndexPtr = 1;
-
+   *profileIndexPtr = 1;
     return LE_OK;
 }
 
@@ -497,8 +514,7 @@ le_result_t pa_mdc_GetBipDefaultProfileIndex
     uint32_t* profileIndexPtr   ///< [OUT] index of the profile.
 )
 {
-    *profileIndexPtr = 2;
-
+   *profileIndexPtr = 2;
     return LE_OK;
 }
 
@@ -513,68 +529,69 @@ le_result_t pa_mdc_GetBipDefaultProfileIndex
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_ReadProfile
 (
-    uint32_t profileIndex,                    ///< [IN] The profile to read
+    uint32_t              profileIndex,     ///< [IN] The profile to read
     pa_mdc_ProfileData_t* profileDataPtr    ///< [OUT] The profile data
 )
 {
-    le_result_t result = LE_FAULT;
-    char atintermediate[ATCOMMAND_SIZE];
-
-    atcmdsync_PrepareString(atintermediate,ATCOMMAND_SIZE,"+CGDCONT: %d,",profileIndex);
-
-    const char* interRespPtr[] = {atintermediate,NULL};
-    atcmdsync_ResultRef_t  atRespPtr = NULL;
-
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+cgdcont?",
-                                    &atRespPtr,
-                                    interRespPtr,
-                                    30000);
-
-    if ( result != LE_OK )
-    {
-        le_mem_Release(atRespPtr);     // Release atcmdsync_SendCommandDefaultExt
-        return result;
-    }
-
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    if (atcmdsync_GetNumLines(atRespPtr) == 2)
-    {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(atRespPtr,0);
-        uint32_t numParam = atcmd_CountLineParameter(line);
-        // it parse just the first line because of '\0'
-
-        if ( FIND_STRING("+CGDCONT:",atcmd_GetLineParameter(line,1)))
-        {
-            if (numParam==7)
-            {
-                if(atoi(atcmd_GetLineParameter(line,2)) == profileIndex)
-                {
-                    strncpy(profileDataPtr->apn,
-                            atcmd_GetLineParameter(line,4),
-                            PA_MDC_APN_MAX_BYTES);
-                    result = LE_OK;
-                } else
-                {
-                    LE_WARN("This is not the good profile %d",
-                            atoi(atcmd_GetLineParameter(line,2)));
-                    result = LE_FAULT;
-                }
-            } else {
-                LE_WARN("this pattern is not expected");
-                result=LE_FAULT;
-            }
-        } else {
-            LE_WARN("this pattern is not expected");
-            result=LE_FAULT;
-        }
-    }
-
-    le_mem_Release(atRespPtr);     // Release atcmdsync_SendCommandDefaultExt
-
-    return result;
+//     le_result_t result = LE_FAULT;
+//     char atintermediate[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+//
+//     snprintf(atintermediate,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"+CGDCONT: %d,",profileIndex);
+//
+//     const char* interRespPtr[] = {atintermediate,NULL};
+//     le_atClient_CmdSyncResultRef_t  atRespPtr = NULL;
+//
+//     result = le_atClient_SendStandard(AllPorts[ATPORT_COMMAND],
+//                                     "at+cgdcont?",
+//                                     &atRespPtr,
+//                                     interRespPtr,
+//                                     30000);
+//
+//     if ( result != LE_OK )
+//     {
+//         le_mem_Release(atRespPtr);     // Release SendCommandDefaultExt
+//         return result;
+//     }
+//
+//     // If there is more than one line then it mean that the command is OK so the first line is
+//     // the intermediate one
+//     if (le_atClient_GetNumLines(atRespPtr) == 2)
+//     {
+//         // it parse just the first line because of '\0'
+//         char* line = GetLine(atRespPtr,0);
+//         uint32_t numParam = le_atClient_cmd_CountLineParameter(line);
+//         // it parse just the first line because of '\0'
+//
+//         if ( FIND_STRING("+CGDCONT:",le_atClient_cmd_GetLineParameter(line,1)))
+//         {
+//             if (numParam==7)
+//             {
+//                 if(atoi(le_atClient_cmd_GetLineParameter(line,2)) == profileIndex)
+//                 {
+//                     strncpy(profileDataPtr->apn,
+//                             le_atClient_cmd_GetLineParameter(line,4),
+//                             PA_MDC_APN_MAX_BYTES);
+//                     result = LE_OK;
+//                 } else
+//                 {
+//                     LE_WARN("This is not the good profile %d",
+//                             atoi(le_atClient_cmd_GetLineParameter(line,2)));
+//                     result = LE_FAULT;
+//                 }
+//             } else {
+//                 LE_WARN("this pattern is not expected");
+//                 result=LE_FAULT;
+//             }
+//         } else {
+//             LE_WARN("this pattern is not expected");
+//             result=LE_FAULT;
+//         }
+//     }
+//
+//     le_mem_Release(atRespPtr);     // Release SendCommandDefaultExt
+//
+//     return result;
+    return LE_FAULT;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -607,20 +624,22 @@ le_result_t pa_mdc_InitializeProfile
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_WriteProfile
 (
-    uint32_t profileIndex,                    ///< [IN] The profile to write
+    uint32_t              profileIndex,                    ///< [IN] The profile to write
     pa_mdc_ProfileData_t* profileDataPtr    ///< [IN] The profile data
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char*          interRespPtr = "\0";
+    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
+    le_atClient_CmdRef_t cmdRef       = NULL;
+    le_result_t          res          = LE_OK;
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,
-                         "at+cgdcont=%d,\"%s\",\"%s\"",profileIndex, "IP", profileDataPtr->apn);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGDCONT=%d,\"%s\",\"%s\"",profileIndex, "IP", profileDataPtr->apn);
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 
@@ -639,9 +658,9 @@ le_result_t pa_mdc_StartSessionIPV4
     uint32_t profileIndex        ///< [IN] The profile to use
 )
 {
-    le_result_t result=LE_FAULT;
+    le_result_t res = LE_FAULT;
 
-    if ( GetCurrentDataSessionIndex() != INVALID_PROFILE_INDEX )
+    if (GetCurrentDataSessionIndex() != INVALID_PROFILE_INDEX)
     {
         return LE_DUPLICATE;
     }
@@ -649,7 +668,7 @@ le_result_t pa_mdc_StartSessionIPV4
     // Always executed because:
     //   - if GPRS is already attached it doesn't do anything and then it returns OK
     //   - if GPRS is not attached it will attach it and then it returns OK on success
-    if ( AttachGPRS(true) != LE_OK )
+    if (AttachGPRS(true) != LE_OK)
     {
         return LE_FAULT;
     }
@@ -657,12 +676,12 @@ le_result_t pa_mdc_StartSessionIPV4
     // Always executed because:
     //   - if the context is already activated it doesn't do anything and then it returns OK
     //   - if the context is not activated it will attach it and then it returns OK on success
-    if ( ActivateContext(profileIndex,true) != LE_OK )
+    if (ActivateContext(profileIndex,true) != LE_OK)
     {
         return LE_FAULT;
     }
 
-    if ( (result = EstablishConnection(profileIndex)) != LE_OK )
+    if ((res = EstablishConnection(profileIndex)) != LE_OK)
     {
         SetCurrentDataSessionIndex(INVALID_PROFILE_INDEX);
         return LE_FAULT;
@@ -670,7 +689,7 @@ le_result_t pa_mdc_StartSessionIPV4
 
     SetCurrentDataSessionIndex(profileIndex);
 
-    return result;
+    return res;
 }
 
 
@@ -728,8 +747,8 @@ le_result_t pa_mdc_StartSessionIPV4V6
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_GetSessionType
 (
-    uint32_t profileIndex,              ///< [IN] The profile to use
-    pa_mdc_SessionType_t* sessionIpPtr  ///< [OUT] IP family session
+    uint32_t              profileIndex,     ///< [IN] The profile to use
+    pa_mdc_SessionType_t* sessionIpPtr      ///< [OUT] IP family session
 )
 {
     return LE_OK;
@@ -751,7 +770,7 @@ le_result_t pa_mdc_StopSession
     uint32_t profileIndex        ///< [IN] The profile to use
 )
 {
-    if ( GetCurrentDataSessionIndex() == INVALID_PROFILE_INDEX )
+    if (GetCurrentDataSessionIndex() == INVALID_PROFILE_INDEX)
     {
         return LE_FAULT;
     }
@@ -779,15 +798,17 @@ le_result_t pa_mdc_StopSession
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_GetSessionState
 (
-    uint32_t profileIndex,                    ///< [IN] The profile to use
+    uint32_t           profileIndex,          ///< [IN] The profile to use
     le_mdc_ConState_t* sessionStatePtr        ///< [OUT] The data session state
 )
 {
     // All other profiles are always disconnected
-    if ( profileIndex != GetCurrentDataSessionIndex() )
+    if (profileIndex != GetCurrentDataSessionIndex())
     {
         *sessionStatePtr = LE_MDC_DISCONNECTED;
-    } else {
+    }
+    else
+    {
         *sessionStatePtr = LE_MDC_CONNECTED;
     }
 
@@ -812,7 +833,7 @@ le_event_HandlerRef_t pa_mdc_AddSessionStateHandler
 )
 {
     // Check if the old handler is replaced or deleted.
-    if ( (NewSessionStateHandlerRef != NULL) || (handlerRef == NULL) )
+    if ((NewSessionStateHandlerRef != NULL) || (handlerRef == NULL))
     {
         LE_INFO("Clearing old handler");
         le_event_RemoveHandler(NewSessionStateHandlerRef);
@@ -820,12 +841,11 @@ le_event_HandlerRef_t pa_mdc_AddSessionStateHandler
     }
 
     // Check if new handler is being added
-    if ( handlerRef != NULL )
+    if (handlerRef != NULL)
     {
-        NewSessionStateHandlerRef = le_event_AddHandler(
-                                            "NewSessionStateHandler",
-                                            NewSessionStateEvent,
-                                            (le_event_HandlerFunc_t) handlerRef);
+        NewSessionStateHandlerRef = le_event_AddHandler("NewSessionStateHandler",
+                                                        NewSessionStateEvent,
+                                                        (le_event_HandlerFunc_t) handlerRef);
     }
 
     return NewSessionStateHandlerRef;
@@ -845,8 +865,8 @@ le_event_HandlerRef_t pa_mdc_AddSessionStateHandler
 le_result_t pa_mdc_GetInterfaceName
 (
     uint32_t profileIndex,                    ///< [IN] The profile to use
-    char*  interfaceNameStr,                ///< [OUT] The name of the network interface
-    size_t interfaceNameStrSize             ///< [IN] The size in bytes of the name buffer
+    char*    interfaceNameStr,                ///< [OUT] The name of the network interface
+    size_t   interfaceNameStrSize             ///< [IN] The size in bytes of the name buffer
 )
 {
     // The interface name will always be of the form pppX, where X is an integer starting at zero.
@@ -854,16 +874,15 @@ le_result_t pa_mdc_GetInterfaceName
     const char pppInterfaceNameStr[] = "ppp0";
 
     le_mdc_ConState_t sessionState;
-    le_result_t result;
+    le_result_t res;
 
-    result = pa_mdc_GetSessionState(profileIndex, &sessionState);
-    if ( (result != LE_OK) || (sessionState != LE_MDC_CONNECTED) )
+    res = pa_mdc_GetSessionState(profileIndex, &sessionState);
+    if ((res != LE_OK) || (sessionState != LE_MDC_CONNECTED))
     {
         return LE_FAULT;
     }
 
-    if (le_utf8_Copy(interfaceNameStr,
-                        pppInterfaceNameStr, interfaceNameStrSize, NULL) == LE_OVERFLOW )
+    if (le_utf8_Copy(interfaceNameStr,pppInterfaceNameStr, interfaceNameStrSize, NULL) == LE_OVERFLOW )
     {
         LE_ERROR("Interface name '%s' is too long", pppInterfaceNameStr);
         return LE_OVERFLOW;
@@ -887,10 +906,10 @@ le_result_t pa_mdc_GetInterfaceName
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_GetIPAddress
 (
-    uint32_t profileIndex,             ///< [IN] The profile to use
+    uint32_t               profileIndex,       ///< [IN] The profile to use
     le_mdmDefs_IpVersion_t ipVersion,          ///< [IN] IP Version
-    char*  ipAddrStr,                  ///< [OUT] The IP address in dotted format
-    size_t ipAddrStrSize               ///< [IN] The size in bytes of the address buffer
+    char*                  ipAddrStr,          ///< [OUT] The IP address in dotted format
+    size_t                 ipAddrStrSize       ///< [IN] The size in bytes of the address buffer
 )
 {
     return LE_OK;
@@ -909,75 +928,76 @@ le_result_t pa_mdc_GetIPAddress
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_GetGatewayAddress
 (
-    uint32_t profileIndex,                  ///< [IN] The profile to use
-    le_mdmDefs_IpVersion_t ipVersion,               ///< [IN] IP Version
-    char*  gatewayAddrStr,                  ///< [OUT] The gateway IP address in dotted format
-    size_t gatewayAddrStrSize               ///< [IN] The size in bytes of the address buffer
+    uint32_t                profileIndex,                    ///< [IN] The profile to use
+    le_mdmDefs_IpVersion_t  ipVersion,                       ///< [IN] IP Version
+    char*                   gatewayAddrStr,                  ///< [OUT] The gateway IP address in dotted format
+    size_t                  gatewayAddrStrSize               ///< [IN] The size in bytes of the address buffer
 )
 {
-    le_result_t result = LE_FAULT;
-    char atcommand[ATCOMMAND_SIZE] ;
-    char atintermediate[ATCOMMAND_SIZE];
-
-    atcmdsync_PrepareString(atintermediate,ATCOMMAND_SIZE,"+CGPADDR: %d,",profileIndex);
-
-    const char* interRespPtr[] = {atintermediate,NULL};
-    atcmdsync_ResultRef_t  atRespPtr = NULL;
-
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cgpaddr=%d",profileIndex);
-
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    atcommand,
-                                    &atRespPtr,
-                                    interRespPtr,
-                                    30000);
-
-    if ( result != LE_OK ) {
-        le_mem_Release(atRespPtr);
-        return result;
-    }
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    if (atcmdsync_GetNumLines(atRespPtr) == 2)
-    {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(atRespPtr,0);
-        uint32_t  numParam = atcmd_CountLineParameter(line);
-        // it parse just the first line because of '\0'
-
-        if (FIND_STRING("+CGPADDR:",atcmd_GetLineParameter(line,1)))
-        {
-            if (numParam==3)
-            {
-                if(atoi(atcmd_GetLineParameter(line,2)) == profileIndex)
-                {
-                    const char* pAddr = atcmd_GetLineParameter(line,3);
-                    size_t length = strlen(pAddr);
-                    if (length-2 < gatewayAddrStrSize) {
-                        atcmd_CopyStringWithoutQuote(gatewayAddrStr,pAddr,gatewayAddrStrSize);
-                        result = LE_OK;
-                    } else {
-                        result = LE_OVERFLOW;
-                    }
-                } else
-                {
-                    LE_WARN("This is not the good profile %d",
-                            atoi(atcmd_GetLineParameter(line,2)));
-                    result = LE_FAULT;
-                }
-            } else {
-                LE_WARN("this pattern is not expected");
-                result = LE_FAULT;
-            }
-        } else {
-            LE_WARN("this pattern is not expected");
-            result = LE_FAULT;
-        }
-    }
-
-    le_mem_Release(atRespPtr);     // Release atcmdsync_SendCommandDefaultExt
-
-    return result;
+//     le_result_t result = LE_FAULT;
+//     char atcommand[LE_ATCLIENT_CMD_SIZE_MAX_LEN] ;
+//     char atintermediate[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+//
+//     snprintf(atintermediate,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"+CGPADDR: %d,",profileIndex);
+//
+//     const char* interRespPtr[] = {atintermediate,NULL};
+//     le_atClient_CmdSyncResultRef_t  atRespPtr = NULL;
+//
+//     snprintf(atcommand,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGPADDR=%d",profileIndex);
+//
+//     result = le_atClient_SendStandard(AllPorts[ATPORT_COMMAND],
+//                                     atcommand,
+//                                     &atRespPtr,
+//                                     interRespPtr,
+//                                     30000);
+//
+//     if ( result != LE_OK ) {
+//         le_mem_Release(atRespPtr);
+//         return result;
+//     }
+//     // If there is more than one line then it mean that the command is OK so the first line is
+//     // the intermediate one
+//     if (le_atClient_GetNumLines(atRespPtr) == 2)
+//     {
+//         // it parse just the first line because of '\0'
+//         char* line = GetLine(atRespPtr,0);
+//         uint32_t  numParam = le_atClient_cmd_CountLineParameter(line);
+//         // it parse just the first line because of '\0'
+//
+//         if (FIND_STRING("+CGPADDR:",le_atClient_cmd_GetLineParameter(line,1)))
+//         {
+//             if (numParam==3)
+//             {
+//                 if(atoi(le_atClient_cmd_GetLineParameter(line,2)) == profileIndex)
+//                 {
+//                     const char* pAddr = le_atClient_cmd_GetLineParameter(line,3);
+//                     size_t length = strlen(pAddr);
+//                     if (length-2 < gatewayAddrStrSize) {
+//                         le_atClient_cmd_CopyStringWithoutQuote(gatewayAddrStr,pAddr,gatewayAddrStrSize);
+//                         result = LE_OK;
+//                     } else {
+//                         result = LE_OVERFLOW;
+//                     }
+//                 } else
+//                 {
+//                     LE_WARN("This is not the good profile %d",
+//                             atoi(le_atClient_cmd_GetLineParameter(line,2)));
+//                     result = LE_FAULT;
+//                 }
+//             } else {
+//                 LE_WARN("this pattern is not expected");
+//                 result = LE_FAULT;
+//             }
+//         } else {
+//             LE_WARN("this pattern is not expected");
+//             result = LE_FAULT;
+//         }
+//     }
+//
+//     le_mem_Release(atRespPtr);     // Release SendCommandDefaultExt
+//
+//     return result;
+    return LE_FAULT;
 }
 
 
@@ -1015,22 +1035,21 @@ le_result_t pa_mdc_RejectMtPdpSession
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_GetDNSAddresses
 (
-    uint32_t profileIndex,                  ///< [IN] The profile to use
-    le_mdmDefs_IpVersion_t ipVersion,               ///< [IN] IP Version
-    char*  dns1AddrStr,                     ///< [OUT] The primary DNS IP address in dotted format
-    size_t dns1AddrStrSize,                 ///< [IN] The size in bytes of the dns1AddrStr buffer
-    char*  dns2AddrStr,                     ///< [OUT] The secondary DNS IP address in dotted format
-    size_t dns2AddrStrSize                  ///< [IN] The size in bytes of the dns2AddrStr buffer
+    uint32_t               profileIndex,     ///< [IN] The profile to use
+    le_mdmDefs_IpVersion_t ipVersion,        ///< [IN] IP Version
+    char*                  dns1AddrStr,      ///< [OUT] The primary DNS IP address in dotted format
+    size_t                 dns1AddrStrSize,  ///< [IN] The size in bytes of the dns1AddrStr buffer
+    char*                  dns2AddrStr,      ///< [OUT] The secondary DNS IP address in dotted format
+    size_t                 dns2AddrStrSize   ///< [IN] The size in bytes of the dns2AddrStr buffer
 )
 {
     struct sockaddr_in addr;
     struct __res_state res;
-
-    le_mdc_ConState_t sessionState;
-    le_result_t result;
+    le_mdc_ConState_t  sessionState;
+    le_result_t        result = LE_OK;
 
     result = pa_mdc_GetSessionState(profileIndex, &sessionState);
-    if ( (result != LE_OK) || (sessionState != LE_MDC_CONNECTED) )
+    if ((result != LE_OK) || (sessionState != LE_MDC_CONNECTED))
     {
         return LE_FAULT;
     }
@@ -1039,30 +1058,39 @@ le_result_t pa_mdc_GetDNSAddresses
     memset(dns2AddrStr,0,dns1AddrStrSize);
 
     res.options &= ~ (RES_INIT);
-    if (res_ninit(&res)==-1) {
+    if (res_ninit(&res)==-1)
+    {
         return LE_FAULT;
     }
 
-    if (res.nscount > 0) {
+    if (res.nscount > 0)
+    {
         addr = res.nsaddr_list[0];
 
-        if ( dns1AddrStrSize < INET_ADDRSTRLEN) {
+        if ( dns1AddrStrSize < INET_ADDRSTRLEN)
+        {
             return LE_OVERFLOW;
         }
-        // now get it back and save it
-        if ( inet_ntop(AF_INET, &(addr.sin_addr), dns1AddrStr, INET_ADDRSTRLEN) == NULL) {
+
+        // Now get it back and save it
+        if ( inet_ntop(AF_INET, &(addr.sin_addr), dns1AddrStr, INET_ADDRSTRLEN) == NULL)
+        {
             return LE_FAULT;
         }
     }
 
-    if (res.nscount > 1) {
+    if (res.nscount > 1)
+    {
         addr = res.nsaddr_list[1];
 
-        if ( dns2AddrStrSize < INET_ADDRSTRLEN) {
+        if ( dns2AddrStrSize < INET_ADDRSTRLEN)
+        {
             return LE_OVERFLOW;
         }
-        // now get it back and save it
-        if ( inet_ntop(AF_INET, &(addr.sin_addr), dns2AddrStr, INET_ADDRSTRLEN) == NULL) {
+
+        // Now get it back and save it
+        if ( inet_ntop(AF_INET, &(addr.sin_addr), dns2AddrStr, INET_ADDRSTRLEN) == NULL)
+        {
             return LE_FAULT;
         }
     }
@@ -1085,9 +1113,9 @@ le_result_t pa_mdc_GetDNSAddresses
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_GetAccessPointName
 (
-    uint32_t profileIndex,             ///< [IN] The profile to use
-    char*  apnNameStr,                 ///< [OUT] The Access Point Name
-    size_t apnNameStrSize              ///< [IN] The size in bytes of the address buffer
+    uint32_t profileIndex,               ///< [IN] The profile to use
+    char*    apnNameStr,                 ///< [OUT] The Access Point Name
+    size_t   apnNameStrSize              ///< [IN] The size in bytes of the address buffer
 )
 {
     return LE_OK;
@@ -1154,4 +1182,3 @@ le_result_t pa_mdc_ResetDataFlowStatistics
 {
     return LE_OK;
 }
-

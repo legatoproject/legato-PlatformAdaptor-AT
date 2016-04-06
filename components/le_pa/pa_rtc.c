@@ -58,6 +58,5 @@ le_result_t pa_rtc_Init
 )
 {
     LE_INFO("AT pa_rtc init - stub");
-
     return LE_OK;
 }

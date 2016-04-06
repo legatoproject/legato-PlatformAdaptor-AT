@@ -10,8 +10,7 @@
 #include "pa_mcc.h"
 #include "pa_common_local.h"
 
-#include "atManager/inc/atCmdSync.h"
-#include "atManager/inc/atPorts.h"
+#include "at/inc/le_atClient.h"
 
 //--------------------------------------------------------------------------------------------------
 // Symbol and Enum definitions.
@@ -24,7 +23,7 @@ static le_event_Id_t          EventCallData;
 
 static le_event_HandlerRef_t  CallDataHandlerRef=NULL;
 
-static atcmd_Ref_t  ATReqCallRef = NULL;
+static le_atClient_CmdRef_t  ATReqCallRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 // APIs.
@@ -42,13 +41,13 @@ static void UnregisterDial
     void
 )
 {
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"OK");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"NO CARRIER");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"BUSY");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"NO ANSWER");
+    le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"OK");
+    le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"NO CARRIER");
+    le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"BUSY");
+    le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"NO ANSWER");
 
     if (ATReqCallRef) {
-        le_mem_Release(ATReqCallRef);   // Release e_atmgr_Object_CreateATCommand
+        le_mem_Release(ATReqCallRef);   // Release e_le_atClient_mgr_Object_CreateATCommand
         ATReqCallRef = NULL;
     }
 }
@@ -148,70 +147,69 @@ static bool ChecktStatus_CssuCode
  */
 //--------------------------------------------------------------------------------------------------
 static void MCCInternalHandler(void* reportPtr) {
-    atmgr_UnsolResponse_t* unsolPtr = reportPtr;
+    char* unsolPtr = reportPtr;
+
     pa_mcc_CallEventData_t callData;
     memset(&callData,0,sizeof(callData));
 
-    LE_DEBUG("Handler received -%s-",unsolPtr->line);
-
-    atcmd_CountLineParameter(unsolPtr->line);
+    le_atClient_cmd_CountLineParameter(unsolPtr);
 
     callData.terminationEvent = LE_MCC_TERM_UNDEFINED;
 
-    if ( (FIND_STRING("OK",unsolPtr->line)) )
+    if ( (FIND_STRING("OK",unsolPtr)) )
     {
         callData.event = LE_MCC_EVENT_CONNECTED;
-        atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"OK");
+        le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"OK");
         if (ATReqCallRef)
         {
-            le_mem_Release(ATReqCallRef);   // Release e_atmgr_Object_CreateATCommand
+            le_mem_Release(ATReqCallRef);   // Release e_le_atClient_mgr_Object_CreateATCommand
             ATReqCallRef = NULL;
         }
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
-    else if ( (FIND_STRING("NO CARRIER",unsolPtr->line)) )
+    else if ( (FIND_STRING("NO CARRIER",unsolPtr)) )
     {
         callData.event = LE_MCC_EVENT_TERMINATED;
         callData.terminationEvent = LE_MCC_TERM_REMOTE_ENDED;
         UnregisterDial();
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
-    else if ( (FIND_STRING("BUSY",unsolPtr->line)) )
+    else if ( (FIND_STRING("BUSY",unsolPtr)) )
     {
         callData.event = LE_MCC_EVENT_TERMINATED;
         callData.terminationEvent = LE_MCC_TERM_USER_BUSY;
         UnregisterDial();
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
-    else if ( (FIND_STRING("NO ANSWER",unsolPtr->line)) )
+    else if ( (FIND_STRING("NO ANSWER",unsolPtr)) )
     {
         callData.event = LE_MCC_EVENT_TERMINATED;
         callData.terminationEvent = LE_MCC_TERM_REMOTE_ENDED;
         UnregisterDial();
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
-    else if ( (FIND_STRING("RING",unsolPtr->line)) )
+    else if ( (FIND_STRING("RING",unsolPtr)) )
     {
         callData.event = LE_MCC_EVENT_INCOMING;
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
-    else if ( (FIND_STRING("+CRING:",atcmd_GetLineParameter(unsolPtr->line,1))) )
+    else if ( (FIND_STRING("+CRING:",le_atClient_cmd_GetLineParameter(unsolPtr,1))) )
     {
         callData.event = LE_MCC_EVENT_INCOMING;
 
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
-    else if ( (FIND_STRING("+WIND:",atcmd_GetLineParameter(unsolPtr->line,1))) )
+    else if ( (FIND_STRING("+WIND:",le_atClient_cmd_GetLineParameter(unsolPtr,1))) )
     {
-    if ( ChecktStatus_WindCode(atcmd_GetLineParameter(unsolPtr->line,2),
+    if ( ChecktStatus_WindCode(le_atClient_cmd_GetLineParameter(unsolPtr,2),
             &(callData.event),&(callData.terminationEvent)))
         {
             le_event_Report(EventCallData,&callData,sizeof(callData));
         }
     }
-    else if ( (FIND_STRING("+CSSU:",atcmd_GetLineParameter(unsolPtr->line,1))) )
+    else if ( (FIND_STRING("+CSSU:",le_atClient_cmd_GetLineParameter(unsolPtr,1))) )
     {
-    if ( ChecktStatus_CssuCode(atcmd_GetLineParameter(unsolPtr->line,2),
+    if ( ChecktStatus_CssuCode(le_atClient_cmd_GetLineParameter(unsolPtr,2),
             &(callData.event),&(callData.terminationEvent)))
         {
             le_event_Report(EventCallData,&callData,sizeof(callData));
@@ -219,7 +217,7 @@ static void MCCInternalHandler(void* reportPtr) {
     }
     else
     {
-        LE_WARN("this pattern is not expected -%s-",unsolPtr->line);
+        LE_WARN("this pattern is not expected -%s-",unsolPtr);
     }
 }
 
@@ -236,14 +234,14 @@ le_result_t pa_mcc_Init
     void
 )
 {
-    if (atports_GetInterface(ATPORT_COMMAND)==NULL) {
-        LE_WARN("Modem Call Control module is not initialize in this session");
-        return LE_FAULT;
-    }
+//     if (AllPorts[ATPORT_COMMAND]==NULL) {
+//         LE_WARN("Modem Call Control module is not initialize in this session");
+//         return LE_FAULT;
+//     }
 
-    EventCallData = le_event_CreateId("MCCEventCallData",sizeof(pa_mcc_CallEventData_t));
+    EventCallData = le_event_CreateId("MCCEventCallData",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
 
-    InternalEventCall = le_event_CreateId("MCCInternalEventCall",sizeof(atmgr_UnsolResponse_t));
+    InternalEventCall = le_event_CreateId("MCCInternalEventCall",sizeof(char));
     le_event_AddHandler("MCCUnsolHandler",InternalEventCall  ,MCCInternalHandler);
 
     return LE_OK;
@@ -263,16 +261,19 @@ static le_result_t SetCssuIndicator
     void
 )
 {
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "+CSSU:",
-                                   false);
+    const char* commandPtr     = "AT+CSSN=0,1";
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                "AT+CSSN=0,1",
-                                                NULL,
-                                                NULL,
-                                                30000);
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"+CSSU:",false);
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -287,25 +288,22 @@ static le_result_t SetIndicator()
 {
     uint32_t wind;
 
-    if ( SetCssuIndicator() != LE_OK )
+    if (SetCssuIndicator() != LE_OK )
     {
         return LE_FAULT;
     }
 
-    if ( pa_common_GetWindIndicator(&wind) != LE_OK)
+    if (pa_common_GetWindIndicator(&wind) != LE_OK)
     {
         return LE_FAULT;
     }
 
-    if ( pa_common_SetWindIndicator(wind|2) != LE_OK)
+    if (pa_common_SetWindIndicator(wind|2) != LE_OK)
     {
         return LE_FAULT;
     }
 
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "+WIND: 2",
-                                   false);
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"+WIND: 2",false);
 
     return LE_OK;
 }
@@ -328,30 +326,22 @@ le_result_t pa_mcc_SetCallEventHandler
 
     LE_FATAL_IF(handlerFuncPtr==NULL,"new Call Control handler is NULL");
 
-    if ( CallDataHandlerRef )
+    if (CallDataHandlerRef)
     {
         LE_WARN("CallEvent Already set");
         return LE_DUPLICATE;
     }
 
-    if ( SetIndicator() != LE_OK )
+    if (SetIndicator() != LE_OK)
     {
         LE_WARN("Cannot set SierraWireless indication");
         return LE_FAULT;
     }
 
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "RING",
-                                   false);
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "+CRING:",
-                                   false);
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"RING",false);
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"+CRING:",false);
 
-    CallDataHandlerRef = le_event_AddHandler("NewCallControlHandler",
-                                EventCallData,
-                                (le_event_HandlerFunc_t) handlerFuncPtr);
+    CallDataHandlerRef = le_event_AddHandler("NewCallControlHandler",EventCallData,(le_event_HandlerFunc_t) handlerFuncPtr);
     return LE_OK;
 }
 
@@ -367,10 +357,10 @@ void pa_mcc_ClearCallEventHandler
     void
 )
 {
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"RING");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"+CRING:");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"+WIND: 2");
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),InternalEventCall,"+CSSU:");
+    le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"RING");
+    le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"+CRING:");
+    le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"+WIND: 2");
+    le_atClient_RemoveUnsolicitedResponseHandler(InternalEventCall,"+CSSU:");
 
     le_event_RemoveHandler(CallDataHandlerRef);
     CallDataHandlerRef = NULL;
@@ -394,7 +384,12 @@ le_result_t pa_mcc_VoiceDial
     le_mcc_TerminationReason_t*  errorPtr   ///< [OUT] Call termination error.
 )
 {
-    char atcommand[ATCOMMAND_SIZE];
+    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
     if (ATReqCallRef)
     {
@@ -402,44 +397,20 @@ le_result_t pa_mcc_VoiceDial
         return LE_BUSY;
     }
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,
-                            "atd%s%c%c;",
-             pn,
-             (clir==PA_MCC_ACTIVATE_CLIR)?'i':'I',
-             (cug==PA_MCC_ACTIVATE_CUG)?'g':'G');
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"ATD%s%c%c;",pn,(clir==PA_MCC_ACTIVATE_CLIR)?'i':'I',(cug==PA_MCC_ACTIVATE_CUG)?'g':'G');
 
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "OK",
-                                   false);
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "NO CARRIER",
-                                   false);
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "BUSY",
-                                   false);
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "NO ANSWER",
-                                   false);
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"OK",false);
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"NO CARRIER",false);
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"BUSY",false);
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"NO ANSWER",false);
 
-    ATReqCallRef = atcmd_Create();
-
-    atcmd_AddCommand    (ATReqCallRef,(char*)atcommand,false);
-    atcmd_AddData       (ATReqCallRef,NULL,0);
-    atcmd_SetTimer      (ATReqCallRef,0,NULL); // NO TIMEOUT
-
-    atcmd_AddIntermediateResp    (ATReqCallRef,atcmdsync_GetIntermediateEventId(),NULL);
-    atcmd_AddFinalResp  (ATReqCallRef,atcmdsync_GetFinalEventId()       ,NULL);
-
-    atmgr_SendCommandRequest(atports_GetInterface(ATPORT_COMMAND), ATReqCallRef);
+    res = le_atClient_SetCommandAndSend(&cmdRef,(char*)command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
     // TODO: populate callIdPtr
     *callIdPtr = 0;
 
-    return LE_OK;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -456,23 +427,24 @@ le_result_t pa_mcc_Answer
     uint8_t  callId     ///< [IN] The call ID to answer
 )
 {
-    if (ATReqCallRef) {
-        le_mem_Release(ATReqCallRef);   // Release e_atmgr_Object_CreateATCommand
+    const char* commandPtr     = "ATA";
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+
+    if (ATReqCallRef)
+    {
+        le_mem_Release(ATReqCallRef);   // Release e_le_atClient_mgr_Object_CreateATCommand
         ATReqCallRef = NULL;
     }
 
-    atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                   InternalEventCall,
-                                   "NO CARRIER",
-                                   false);
+    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"NO CARRIER",false);
 
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                "ATA",
-                                                NULL,
-                                                NULL,
-                                                30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result == LE_OK )
+    if (res == LE_OK)
     {
         pa_mcc_CallEventData_t callData;
         memset(&callData,0,sizeof(callData));
@@ -480,7 +452,8 @@ le_result_t pa_mcc_Answer
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
 
-    return result;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -497,15 +470,18 @@ le_result_t pa_mcc_HangUp
     uint8_t  callId     ///< [IN] The call ID to hangup
 )
 {
+    const char* commandPtr     = "ATH0";
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+
     UnregisterDial();
 
-    le_result_t result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                                "ATH0",
-                                                NULL,
-                                                NULL,
-                                                30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result == LE_OK )
+    if (res == LE_OK)
     {
         pa_mcc_CallEventData_t callData;
         memset(&callData,0,sizeof(callData));
@@ -514,7 +490,8 @@ le_result_t pa_mcc_HangUp
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
 
-    return result;
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------

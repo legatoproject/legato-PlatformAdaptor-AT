@@ -10,8 +10,7 @@
 #include "pa_mrc.h"
 #include "pa_common_local.h"
 
-#include "atManager/inc/atCmdSync.h"
-#include "atManager/inc/atPorts.h"
+#include "at/inc/le_atClient.h"
 
 #define DEFAULT_REGSTATE_POOL_SIZE  1
 
@@ -33,12 +32,11 @@ static void SubscribeUnsolCREG
     pa_mrc_NetworkRegSetting_t  mode ///< [IN] The selected Network registration mode.
 )
 {
-    atmgr_UnSubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),EventUnsolicitedId,"+CREG:");
+    le_atClient_RemoveUnsolicitedResponseHandler(EventUnsolicitedId,"+CREG:");
 
     if ((mode==PA_MRC_ENABLE_REG_NOTIFICATION) || (mode==PA_MRC_ENABLE_REG_LOC_NOTIFICATION))
     {
-        atmgr_SubscribeUnsolReq(atports_GetInterface(ATPORT_COMMAND),
-                                       EventUnsolicitedId,
+        le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,
                                        "+CREG:",
                                        false);
     }
@@ -52,20 +50,23 @@ static void SubscribeUnsolCREG
  *
  */
 //--------------------------------------------------------------------------------------------------
-static void CREGUnsolHandler(void* reportPtr) {
-    atmgr_UnsolResponse_t* unsolPtr = reportPtr;
+static void CREGUnsolHandler
+(
+    void* reportPtr
+)
+{
+    char* unsolPtr = reportPtr;
+
     uint32_t  numParam=0;
     le_mrc_NetRegState_t  *statePtr;
 
-    LE_DEBUG("Handler received -%s-",unsolPtr->line);
-
-    numParam = atcmd_CountLineParameter(unsolPtr->line);
+    numParam = le_atClient_cmd_CountLineParameter(unsolPtr);
 
     if ( ThisMode == PA_MRC_ENABLE_REG_NOTIFICATION )
     {
         if (numParam == 2) {
             statePtr = le_mem_ForceAlloc(RegStatePoolRef);
-            switch(atoi(atcmd_GetLineParameter(unsolPtr->line,2)))
+            switch(atoi(le_atClient_cmd_GetLineParameter(unsolPtr,2)))
             {
                 case 0:
                     *statePtr = LE_MRC_REG_NONE;
@@ -92,13 +93,13 @@ static void CREGUnsolHandler(void* reportPtr) {
             LE_DEBUG("Send Event with state %d",*statePtr);
             le_event_ReportWithRefCounting(EventNewRcStatusId,statePtr);
         } else {
-            LE_WARN("this Response pattern is not expected -%s-",unsolPtr->line);
+            LE_WARN("this Response pattern is not expected -%s-",unsolPtr);
         }
     } else if (ThisMode == PA_MRC_ENABLE_REG_LOC_NOTIFICATION)
     {
         if (numParam == 5) {
             statePtr = le_mem_ForceAlloc(RegStatePoolRef);
-            switch(atoi(atcmd_GetLineParameter(unsolPtr->line,2)))
+            switch(atoi(le_atClient_cmd_GetLineParameter(unsolPtr,2)))
             {
                 case 0:
                     *statePtr = LE_MRC_REG_NONE;
@@ -125,7 +126,7 @@ static void CREGUnsolHandler(void* reportPtr) {
             LE_DEBUG("Send Event with state %d",*statePtr);
             le_event_ReportWithRefCounting(EventNewRcStatusId,statePtr);
         } else {
-            LE_WARN("this Response pattern is not expected -%s-",unsolPtr->line);
+            LE_WARN("this Response pattern is not expected -%s-",unsolPtr);
         }
     }
 }
@@ -143,12 +144,12 @@ le_result_t pa_mrc_Init
     void
 )
 {
-    if (atports_GetInterface(ATPORT_COMMAND)==NULL) {
-        LE_WARN("radio control Module is not initialize in this session");
-        return LE_FAULT;
-    }
+//     if (AllPorts[ATPORT_COMMAND]==NULL) {
+//         LE_WARN("radio control Module is not initialize in this session");
+//         return LE_FAULT;
+//     }
 
-    EventUnsolicitedId    = le_event_CreateId("RCEventIdUnsol",sizeof(atmgr_UnsolResponse_t));
+    EventUnsolicitedId    = le_event_CreateId("RCEventIdUnsol",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
     EventNewRcStatusId    = le_event_CreateIdWithRefCounting("EventNewRcStatus");
 
     le_event_AddHandler("RCUnsolHandler",EventUnsolicitedId  ,CREGUnsolHandler);
@@ -178,26 +179,30 @@ le_result_t pa_mrc_SetRadioPower
     le_onoff_t    power   ///< [IN] The power state.
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char*       commandPtr     = NULL;
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
     if (power == LE_ON)
     {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cfun=1");
+        commandPtr = "AT+CFUN=1";
     }
     else if (power == LE_OFF)
     {
-        atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+cfun=0");
+        commandPtr = "AT+CFUN=0";
     }
     else
     {
         return LE_BAD_PARAMETER;
     }
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -214,56 +219,56 @@ le_result_t pa_mrc_GetRadioPower
      le_onoff_t*    powerPtr   ///< [OUT] The power state.
 )
 {
-    le_result_t result = LE_FAULT;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    const char* interRespPtr[] = {"+CFUN:",NULL};
+    const char* commandPtr      = "AT+CFUN?";
+    const char* interRespPtr    = "+CFUN:";
+    const char* respPtr         = "\0";
 
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+cfun?",
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+    char firstResponse[COMMAND_LEN_MAX];
+    char finalResponse[COMMAND_LEN_MAX];
+    char* savePtr  = NULL;
+    char* tokenPtr = NULL;
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef); // release atcmdsync_SendCommandDefaultExt
-        return result;
-    }
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    if (atcmdsync_GetNumLines(resRef) == 2)
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    if (res != LE_OK)
     {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(resRef,0);
-        // it parse just the first line because of '\0'
-        uint32_t numParam = atcmd_CountLineParameter(line);
-
-        // Check is the +CREG intermediate response is in good format
-        if (FIND_STRING("+CFUN:",atcmd_GetLineParameter(line,1)))
-        {
-            if (numParam==2)
-            {
-                if(atoi(atcmd_GetLineParameter(line,2)) != 0)
-                {
-                    *powerPtr = LE_ON;
-                }
-                else
-                {
-                    *powerPtr = LE_OFF;
-                }
-                result = LE_OK;
-            } else {
-                LE_WARN("this pattern is not expected");
-                result = LE_FAULT;
-            }
-        } else {
-            LE_WARN("this pattern is not expected");
-            result = LE_FAULT;
-        }
+        le_atClient_Delete(cmdRef);
+        return res;
     }
+    else
+    {
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
 
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommand
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        if (res != LE_OK)
+        {
+            LE_DEBUG("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
 
-    return result;
+        tokenPtr = strtok_r(firstResponse, "+CFUN: ", &savePtr);
+
+        if(atoi(tokenPtr) != 0)
+        {
+            *powerPtr = LE_ON;
+        }
+        else
+        {
+            *powerPtr = LE_OFF;
+        }
+
+        le_atClient_Delete(cmdRef);
+        return LE_OK;
+    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -359,15 +364,19 @@ le_result_t pa_mrc_ConfigureNetworkReg
     pa_mrc_NetworkRegSetting_t  setting ///< [IN] The selected Network registration setting.
 )
 {
-    char atcommand[ATCOMMAND_SIZE] ;
+    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    const char* interRespPtr   = "\0";
+    const char* respPtr        = "\0";
 
-    atcmdsync_PrepareString(atcommand,ATCOMMAND_SIZE,"at+creg=%d", setting);
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
 
-    return atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                  atcommand,
-                                  NULL,
-                                  NULL,
-                                  30000);
+    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CREG=%d", setting);
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -385,78 +394,92 @@ static le_result_t GetNetworkReg
     int32_t*    valuePtr    ///< value that will be return
 )
 {
-    le_result_t result = LE_FAULT;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    const char* interRespPtr[] = {"+CREG:",NULL};
+    const char* commandPtr     = "AT+CREG?";
+    const char* interRespPtr   = "+CREG:";
+    const char* respPtr        = "\0";
 
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+creg?",
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+    char firstResponse[COMMAND_LEN_MAX];
+    char finalResponse[COMMAND_LEN_MAX];
+    char* tokenPtr = NULL;
+    char* rest     = NULL;
+    char* savePtr  = NULL;
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);     // release atcmdsync_SendCommandDefaultExt
-        return result;
-    }
-
-    // If there is more than one line then it mean that the command is OK so the first line is
-    // the intermediate one
-    if (atcmdsync_GetNumLines(resRef) == 2)
+    if (!valuePtr)
     {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(resRef,0);
-        uint32_t numParam = atcmd_CountLineParameter(line);
-        // it parse just the first line because of '\0'
-
-        if (FIND_STRING("+CREG:",atcmd_GetLineParameter(line,1)))
-        {
-            if ((numParam>2) && (numParam<7))
-            {
-                int32_t val;
-                if (first) {
-                    val=(int32_t)atoi(atcmd_GetLineParameter(line,2));
-                } else {
-                    val=(int32_t)atoi(atcmd_GetLineParameter(line,3));
-                }
-                switch(val)
-                {
-                    case 0:
-                        *valuePtr = LE_MRC_REG_NONE;
-                        break;
-                    case 1:
-                        *valuePtr = LE_MRC_REG_HOME;
-                        break;
-                    case 2:
-                        *valuePtr = LE_MRC_REG_SEARCHING;
-                        break;
-                    case 3:
-                        *valuePtr = LE_MRC_REG_DENIED;
-                        break;
-                    case 4:
-                        *valuePtr = LE_MRC_REG_UNKNOWN;
-                        break;
-                    case 5:
-                        *valuePtr = LE_MRC_REG_ROAMING;
-                        break;
-                    default:
-                        *valuePtr = LE_MRC_REG_UNKNOWN;
-                        break;
-                }
-                result = LE_OK;
-            } else {
-                LE_WARN("this pattern is not expected");
-                result = LE_FAULT;
-            }
-        } else {
-            LE_WARN("this pattern is not expected");
-            result = LE_FAULT;
-        }
+        LE_WARN("One parameter is NULL");
+        return LE_BAD_PARAMETER;
     }
 
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommand
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    return result;
+    if (res != LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+    else
+    {
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
+
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        if (res != LE_OK)
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
+
+        rest = firstResponse+strlen("+CREG: ");
+        int32_t val;
+
+        tokenPtr = strtok_r(rest, ",", &savePtr);
+
+        if (first)
+        {
+            val=atoi(tokenPtr);
+        }
+        else
+        {
+            tokenPtr = strtok_r(NULL, ",", &savePtr);
+            val=atoi(tokenPtr);
+        }
+
+        switch(val)
+        {
+            case 0:
+                *valuePtr = LE_MRC_REG_NONE;
+                break;
+            case 1:
+                *valuePtr = LE_MRC_REG_HOME;
+                break;
+            case 2:
+                *valuePtr = LE_MRC_REG_SEARCHING;
+                break;
+            case 3:
+                *valuePtr = LE_MRC_REG_DENIED;
+                break;
+            case 4:
+                *valuePtr = LE_MRC_REG_UNKNOWN;
+                break;
+            case 5:
+                *valuePtr = LE_MRC_REG_ROAMING;
+                break;
+            default:
+                *valuePtr = LE_MRC_REG_UNKNOWN;
+                break;
+        }
+
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -544,9 +567,17 @@ le_result_t pa_mrc_GetSignalStrength
     int32_t*          rssiPtr    ///< [OUT] The received signal strength (in dBm).
 )
 {
-    le_result_t result = LE_FAULT;
-    atcmdsync_ResultRef_t  resRef = NULL;
-    const char* interRespPtr[] = {"+CSQ:",NULL};
+    const char* commandPtr     = "AT+CSQ";
+    const char* interRespPtr   = "+CSQ:";
+    const char* respPtr        = "\0";
+
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t res;
+    char firstResponse[COMMAND_LEN_MAX];
+    char finalResponse[COMMAND_LEN_MAX];
+    char* tokenPtr = NULL;
+    char* rest     = NULL;
+    char* savePtr  = NULL;
 
     if (!rssiPtr)
     {
@@ -554,53 +585,51 @@ le_result_t pa_mrc_GetSignalStrength
         return LE_BAD_PARAMETER;
     }
 
-    result = atcmdsync_SendStandard(atports_GetInterface(ATPORT_COMMAND),
-                                    "at+csq",
-                                    &resRef,
-                                    interRespPtr,
-                                    30000);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
 
-    if ( result != LE_OK ) {
-        le_mem_Release(resRef);     // Release atcmdsync_SendCommandDefaultExt
-        return result;
-    }
-
-    // If there is more than one line then it mean that the command is OK so the first line is
-    if (atcmdsync_GetNumLines(resRef) == 2)
+    if (res != LE_OK)
     {
-        // it parse just the first line because of '\0'
-        char* line = atcmdsync_GetLine(resRef,0);
-        uint32_t numParam = atcmd_CountLineParameter(line);
-        // it parse just the first line because of '\0'
-
-        if (FIND_STRING("+CSQ:",atcmd_GetLineParameter(line,1)))
-        {
-            if (numParam==3)
-            {
-                uint32_t val2 = atoi(atcmd_GetLineParameter(line,2));
-                if (val2==99)
-                {
-                    LE_WARN("Quality signal not detectable");
-                    result = LE_OUT_OF_RANGE;
-                }
-                else
-                {
-                    *rssiPtr = (-113+(2*val2));
-                    result = LE_OK;
-                }
-            } else {
-                LE_WARN("this pattern is not expected");
-                result = LE_FAULT;
-            }
-        } else {
-            LE_WARN("this pattern is not expected");
-            result = LE_FAULT;
-        }
+        le_atClient_Delete(cmdRef);
+        return res;
     }
+    else
+    {
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
 
-    le_mem_Release(resRef);     // Release atcmdsync_SendCommand
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        if (res != LE_OK)
+        {
+            LE_ERROR("Failed to get the response");
+            le_atClient_Delete(cmdRef);
+            return res;
+        }
 
-    return result;
+        rest = firstResponse+strlen("+CSQ: ");
+        int32_t val;
+
+        tokenPtr = strtok_r(rest, ",", &savePtr);
+        val=atoi(tokenPtr);
+
+        if (val == 99)
+        {
+            LE_WARN("Quality signal not detectable");
+            res = LE_OUT_OF_RANGE;
+        }
+        else
+        {
+            *rssiPtr = (-113+(2*val));
+            res = LE_OK;
+        }
+
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
 }
 
 //--------------------------------------------------------------------------------------------------
