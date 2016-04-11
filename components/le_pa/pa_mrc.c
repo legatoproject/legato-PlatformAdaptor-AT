@@ -719,23 +719,46 @@ le_result_t pa_mrc_GetScanInformationName
     return LE_FAULT;
 }
 
+
 //--------------------------------------------------------------------------------------------------
 /**
- * This function must be called to get the current preferred operators list.
+ * This function must be called to get the number of preferred operators present in the list.
  *
  * @return
- *   - A positive value on success (number of Preferred operator found).
- *   - LE_NOT_FOUND if preferred operator list is not available.
+ *      - LE_OK on success
+ *      - LE_FAULT on failure
  */
 //--------------------------------------------------------------------------------------------------
-int32_t pa_mrc_GetPreferredOperatorsList
+le_result_t pa_mrc_CountPreferredOperators
 (
-    le_dls_List_t*   preferredOperatorListPtr,    ///< [IN/OUT] The preferred operators list.
-    bool  plmnStatic,   ///< [IN] Include Static preferred Operators.
-    bool  plmnUser      ///< [IN] Include Users preferred Operators.
+    bool      plmnStatic,   ///< [IN] Include Static preferred Operators.
+    bool      plmnUser,     ///< [IN] Include Users preferred Operators.
+    int32_t*  nbItemPtr     ///< [OUT] number of Preferred operator found if success.
 )
 {
-    if (preferredOperatorListPtr == NULL)
+    return LE_FAULT;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to get the current preferred operators.
+ *
+ * @return
+ *      - LE_OK on success
+ *      - LE_NOT_FOUND if Preferred operator list is not available
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_mrc_GetPreferredOperators
+(
+    pa_mrc_PreferredNetworkOperator_t*   preferredOperatorPtr,
+                       ///< [IN/OUT] The preferred operators pointer.
+    bool  plmnStatic,  ///< [IN] Include Static preferred Operators.
+    bool  plmnUser,    ///< [IN] Include Users preferred Operators.
+    int32_t* nbItemPtr ///< [IN/OUT] number of Preferred operator to find (in) and written (out).
+)
+{
+    if (preferredOperatorPtr == NULL)
     {
         LE_FATAL("preferredOperatorListPtr is NULL !");
     }
@@ -743,76 +766,6 @@ int32_t pa_mrc_GetPreferredOperatorsList
     return LE_NOT_FOUND;
 }
 
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to clear the preferred list.
- *
- */
-//--------------------------------------------------------------------------------------------------
-void pa_mrc_DeletePreferredOperatorsList
-(
-    le_dls_List_t      *preferredOperatorsListPtr ///< [IN] List of preferred network operator
-)
-{
-
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to add a new mobile country/network code in the list
- *
- * @return
- *  - LE_FAULT         Function failed.
- *  - LE_OK            Function succeeded.
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_mrc_AddPreferredOperators
-(
-    le_dls_List_t      *preferredOperatorsListPtr,   ///< [OUT] List of preferred network operator
-    const char*         mccPtr,                      ///< [IN] Mobile Country Code
-    const char*         mncPtr,                      ///< [IN] Mobile Network Code
-    le_mrc_RatBitMask_t ratMask                      ///< [IN] Radio Access Technology mask
-)
-{
-    LE_DEBUG("Adding [%s,%s] = 0x%.04"PRIX16, mccPtr, mncPtr, ratMask);
-    return LE_FAULT;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to remove a mobile country/network code in the list
- *
- * @return
- *      - LE_OK             On success
- *      - LE_NOT_FOUND      Not present in preferred PLMN list
- *      - LE_FAULT          For all other errors
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_mrc_RemovePreferredOperators
-(
-    le_dls_List_t      *preferredOperatorsListPtr,   ///< [IN] List of preferred network operator
-    const char*         mccPtr,                      ///< [IN] Mobile Country Code
-    const char*         mncPtr                       ///< [IN] Mobile Network Code
-)
-{
-    return LE_FAULT;
-}
-
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to clear the preferred list.
- *
- * @TODO     implementation
- */
-//--------------------------------------------------------------------------------------------------
-void pa_mrc_DeletePreferredOperators
-(
-    le_dls_List_t      *preferredOperatorsListPtr ///< [IN] List of preferred network operator
-)
-{
-    return;
-}
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -1203,7 +1156,6 @@ le_result_t pa_mrc_GetServingCellId
     return LE_FAULT;
 }
 
-
 //--------------------------------------------------------------------------------------------------
 /**
  * This function must be called to get the Tracking Area Code of the serving cell.
@@ -1221,7 +1173,6 @@ le_result_t pa_mrc_GetServingCellLteTracAreaCode
     // TODO: implement this function
     return LE_FAULT;
 }
-
 
 //--------------------------------------------------------------------------------------------------
 /**
