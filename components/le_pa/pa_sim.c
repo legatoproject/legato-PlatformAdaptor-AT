@@ -7,10 +7,10 @@
 
 
 #include "legato.h"
-#include "at/inc/le_atClient.h"
+#include "le_atClient.h"
 
 #include "pa_sim.h"
-#include "pa_common_local.h"
+#include "pa_utils_local.h"
 
 #define DEFAULT_SIMEVENT_POOL_SIZE  1
 
@@ -155,44 +155,6 @@ static void CheckStatus_CpinCode
     }
 }
 
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to translate the code status for +WIND parsing
- *
- */
-//--------------------------------------------------------------------------------------------------
-static void CheckStatus_WindCode
-(
-    const char      *valPtr,   ///< [IN] the value to change
-    le_sim_States_t *statePtr  ///< [OUT] SIM state
-)
-{
-    uint32_t value = atoi(valPtr);
-
-    switch (value)
-    {
-
-        case 0:     /*SIM card is removed.*/
-//         case 14:    /*The rack has been detected as opened.*/
-        {
-            *statePtr = LE_SIM_ABSENT;
-            break;
-        }
-        case 1:    /*SIM card is inserted.*/
-//         case 10:   /*Reload status of each SIM phonebook after init phase.*/
-//         case 11:   /*Checksum of SIM phonebooks after initialization.*/
-//         case 13:   /*SIM card is inserted.*/
-        {
-            *statePtr = LE_SIM_INSERTED;
-            break;
-        }
-        default:
-        {
-            LE_DEBUG("WIND error (%s) not used",valPtr);
-            *statePtr = LE_SIM_STATE_UNKNOWN;
-        }
-    }
-}
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -216,27 +178,23 @@ static bool CheckStatus
     memcpy(line,lineStr,MAXLINE);
     line[MAXLINE] = '\0';
 
-    le_atClient_cmd_CountLineParameter(line);
+    pa_utils_CountAndIsolateLineParameters(line);
 
-    if (FIND_STRING("OK",le_atClient_cmd_GetLineParameter(line,1)))
+    if (FIND_STRING("OK",pa_utils_IsolateLineParameter(line,1)))
     {
         *statePtr = LE_SIM_READY;
     }
-    else if (FIND_STRING("+CME ERROR:",le_atClient_cmd_GetLineParameter(line,1)))
+    else if (FIND_STRING("+CME ERROR:",pa_utils_IsolateLineParameter(line,1)))
     {
-        CheckStatus_CmeErrorCode(le_atClient_cmd_GetLineParameter(line,2),statePtr);
+        CheckStatus_CmeErrorCode(pa_utils_IsolateLineParameter(line,2),statePtr);
     }
-    else if (FIND_STRING("+CMS ERROR:",le_atClient_cmd_GetLineParameter(line,1)))
+    else if (FIND_STRING("+CMS ERROR:",pa_utils_IsolateLineParameter(line,1)))
     {
-        CheckStatus_CmsErrorCode(le_atClient_cmd_GetLineParameter(line,2),statePtr);
+        CheckStatus_CmsErrorCode(pa_utils_IsolateLineParameter(line,2),statePtr);
     }
-    else if (FIND_STRING("+CPIN:",le_atClient_cmd_GetLineParameter(line,1)))
+    else if (FIND_STRING("+CPIN:",pa_utils_IsolateLineParameter(line,1)))
     {
-        CheckStatus_CpinCode(le_atClient_cmd_GetLineParameter(line,2),statePtr);
-    }
-    else if (FIND_STRING("+WIND:",le_atClient_cmd_GetLineParameter(line,1)))
-    {
-        CheckStatus_WindCode(le_atClient_cmd_GetLineParameter(line,2),statePtr);
+        CheckStatus_CpinCode(pa_utils_IsolateLineParameter(line,2),statePtr);
     }
     else
     {
@@ -291,43 +249,6 @@ static void SIMUnsolHandler
     }
 }
 
-//--------------------------------------------------------------------------------------------------
-// APIs.
-//--------------------------------------------------------------------------------------------------
-/**
- * This function sets the SierraWireless proprietary indicator +WIND unsolicited
- *
- * @return LE_FAULT         The function failed.
- * @return LE_OK            The function succeeded.
- */
-
-static le_result_t SetIndicator
-(
-    void
-)
-{
-    uint32_t wind;
-
-    if ( pa_common_GetWindIndicator(&wind) != LE_OK)
-    {
-        return LE_FAULT;
-    }
-
-    if ( pa_common_SetWindIndicator(wind|1|8) != LE_OK)
-    {
-        return LE_FAULT;
-    }
-
-    le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,
-                                              "+WIND: 0",
-                                              false);
-
-    le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,
-                                              "+WIND: 1",
-                                              false);
-
-    return LE_OK;
-}
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -354,7 +275,6 @@ le_result_t pa_sim_Init
     EventNewSimStateId    = le_event_CreateIdWithRefCounting("SIMEventIdNewState");
     le_event_AddHandler("SIMUnsolHandler",EventUnsolicitedId  ,SIMUnsolHandler);
 
-    LE_DEBUG_IF(SetIndicator()!=LE_OK,"cannot set sim +WIND indicator");
 
     return LE_OK;
 }
@@ -441,8 +361,8 @@ le_result_t pa_sim_GetCardIdentification
 
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t res;
-    char firstResponse[COMMAND_LEN_MAX];
-    char finalResponse[COMMAND_LEN_MAX];
+    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
     char* tokenPtr;
     char* savePtr;
 
@@ -452,7 +372,7 @@ le_result_t pa_sim_GetCardIdentification
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res != LE_OK)
     {
@@ -461,7 +381,7 @@ le_result_t pa_sim_GetCardIdentification
     }
     else
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
             LE_ERROR("Failed to get the response");
@@ -469,7 +389,7 @@ le_result_t pa_sim_GetCardIdentification
             return res;
         }
 
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the response");
@@ -478,7 +398,7 @@ le_result_t pa_sim_GetCardIdentification
         }
 
         // Cut the string for keep just the CCID number
-        tokenPtr = strtok_r(firstResponse, "\"", &savePtr);
+        tokenPtr = strtok_r(intermediateResponse, "\"", &savePtr);
         tokenPtr = strtok_r(NULL, "\"", &savePtr);
 
         strncpy(iccid, tokenPtr, strlen(tokenPtr));
@@ -510,8 +430,8 @@ le_result_t pa_sim_GetIMSI
 
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t res;
-    char firstResponse[COMMAND_LEN_MAX];
-    char finalResponse[COMMAND_LEN_MAX];
+    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
     if (!imsi)
     {
@@ -519,7 +439,7 @@ le_result_t pa_sim_GetIMSI
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res != LE_OK)
     {
@@ -528,7 +448,7 @@ le_result_t pa_sim_GetIMSI
     }
     else
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
             LE_ERROR("Failed to get the response");
@@ -536,7 +456,7 @@ le_result_t pa_sim_GetIMSI
             return res;
         }
 
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the response");
@@ -544,7 +464,7 @@ le_result_t pa_sim_GetIMSI
             return res;
         }
 
-        strncpy(imsi, firstResponse, strlen(firstResponse));
+        strncpy(imsi, intermediateResponse, strlen(intermediateResponse));
 
         le_atClient_Delete(cmdRef);
         return res;
@@ -573,7 +493,7 @@ le_result_t pa_sim_GetState
 
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t res;
-    char finalResponse[COMMAND_LEN_MAX];
+    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
     if (!statePtr)
     {
@@ -583,11 +503,11 @@ le_result_t pa_sim_GetState
 
     *statePtr = LE_SIM_STATE_UNKNOWN;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res == LE_OK)
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the response");
@@ -672,7 +592,7 @@ le_result_t pa_sim_EnterPIN
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CPIN=%s",pin);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -708,7 +628,7 @@ le_result_t pa_sim_EnterPUK
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CPIN=%s,%s",puk,pin);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -735,7 +655,7 @@ static le_result_t pa_sim_GetRemainingAttempts
     const char* interRespPtr   = "+CPINC:";
     const char* respPtr        = "\0";
 
-    char firstResponse[50];
+    char intermediateResponse[50];
     char finalResponse[50];
     char* tokenPtr              = NULL;
     char* rest                  = NULL;
@@ -749,7 +669,7 @@ static le_result_t pa_sim_GetRemainingAttempts
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res != LE_OK)
     {
@@ -766,7 +686,7 @@ static le_result_t pa_sim_GetRemainingAttempts
             return LE_FAULT;
         }
 
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the response !");
@@ -774,7 +694,7 @@ static le_result_t pa_sim_GetRemainingAttempts
             return res;
         }
 
-        rest = firstResponse+strlen("+CPINC: ");
+        rest = intermediateResponse+strlen("+CPINC: ");
         int i = 0;
 
         tokenPtr = strtok_r(rest, ",", &savePtr);
@@ -894,7 +814,7 @@ le_result_t pa_sim_ChangePIN
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -937,7 +857,7 @@ le_result_t pa_sim_EnablePIN
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -980,7 +900,7 @@ le_result_t pa_sim_DisablePIN
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;

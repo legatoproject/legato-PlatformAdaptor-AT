@@ -8,9 +8,9 @@
 #include "legato.h"
 
 #include "pa_mcc.h"
-#include "pa_common_local.h"
+#include "pa_utils_local.h"
 
-#include "at/inc/le_atClient.h"
+#include "le_atClient.h"
 
 //--------------------------------------------------------------------------------------------------
 // Symbol and Enum definitions.
@@ -152,7 +152,7 @@ static void MCCInternalHandler(void* reportPtr) {
     pa_mcc_CallEventData_t callData;
     memset(&callData,0,sizeof(callData));
 
-    le_atClient_cmd_CountLineParameter(unsolPtr);
+    pa_utils_CountAndIsolateLineParameters(unsolPtr);
 
     callData.terminationEvent = LE_MCC_TERM_UNDEFINED;
 
@@ -193,23 +193,23 @@ static void MCCInternalHandler(void* reportPtr) {
         callData.event = LE_MCC_EVENT_INCOMING;
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
-    else if ( (FIND_STRING("+CRING:",le_atClient_cmd_GetLineParameter(unsolPtr,1))) )
+    else if ( (FIND_STRING("+CRING:",pa_utils_IsolateLineParameter(unsolPtr,1))) )
     {
         callData.event = LE_MCC_EVENT_INCOMING;
 
         le_event_Report(EventCallData,&callData,sizeof(callData));
     }
-    else if ( (FIND_STRING("+WIND:",le_atClient_cmd_GetLineParameter(unsolPtr,1))) )
+    else if ( (FIND_STRING("+WIND:",pa_utils_IsolateLineParameter(unsolPtr,1))) )
     {
-    if ( ChecktStatus_WindCode(le_atClient_cmd_GetLineParameter(unsolPtr,2),
+    if ( ChecktStatus_WindCode(pa_utils_IsolateLineParameter(unsolPtr,2),
             &(callData.event),&(callData.terminationEvent)))
         {
             le_event_Report(EventCallData,&callData,sizeof(callData));
         }
     }
-    else if ( (FIND_STRING("+CSSU:",le_atClient_cmd_GetLineParameter(unsolPtr,1))) )
+    else if ( (FIND_STRING("+CSSU:",pa_utils_IsolateLineParameter(unsolPtr,1))) )
     {
-    if ( ChecktStatus_CssuCode(le_atClient_cmd_GetLineParameter(unsolPtr,2),
+    if ( ChecktStatus_CssuCode(pa_utils_IsolateLineParameter(unsolPtr,2),
             &(callData.event),&(callData.terminationEvent)))
         {
             le_event_Report(EventCallData,&callData,sizeof(callData));
@@ -247,66 +247,6 @@ le_result_t pa_mcc_Init
     return LE_OK;
 }
 
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to set CSSU unsolicited code
- *
- * @return LE_FAULT  The function failed.
- * @return LE_TIMEOUT       No response was received.
- * @return LE_OK            The function succeeded.
- */
-//--------------------------------------------------------------------------------------------------
-static le_result_t SetCssuIndicator
-(
-    void
-)
-{
-    const char* commandPtr     = "AT+CSSN=0,1";
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "\0";
-
-    le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
-
-    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"+CSSU:",false);
-
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
-
-    le_atClient_Delete(cmdRef);
-    return res;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to set sierrawireless indication WIND (2,5,6)
- *
- * @return LE_FAULT         The function failed to set WIND indicator.
- * @return LE_OK            The function succeeded.
- */
-//--------------------------------------------------------------------------------------------------
-static le_result_t SetIndicator()
-{
-    uint32_t wind;
-
-    if (SetCssuIndicator() != LE_OK )
-    {
-        return LE_FAULT;
-    }
-
-    if (pa_common_GetWindIndicator(&wind) != LE_OK)
-    {
-        return LE_FAULT;
-    }
-
-    if (pa_common_SetWindIndicator(wind|2) != LE_OK)
-    {
-        return LE_FAULT;
-    }
-
-    le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"+WIND: 2",false);
-
-    return LE_OK;
-}
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -330,12 +270,6 @@ le_result_t pa_mcc_SetCallEventHandler
     {
         LE_WARN("CallEvent Already set");
         return LE_DUPLICATE;
-    }
-
-    if (SetIndicator() != LE_OK)
-    {
-        LE_WARN("Cannot set SierraWireless indication");
-        return LE_FAULT;
     }
 
     le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"RING",false);
@@ -404,7 +338,7 @@ le_result_t pa_mcc_VoiceDial
     le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"BUSY",false);
     le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"NO ANSWER",false);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,(char*)command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,(char*)command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     // TODO: populate callIdPtr
     *callIdPtr = 0;
@@ -442,7 +376,7 @@ le_result_t pa_mcc_Answer
 
     le_atClient_AddUnsolicitedResponseHandler(InternalEventCall,"NO CARRIER",false);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res == LE_OK)
     {
@@ -479,7 +413,7 @@ le_result_t pa_mcc_HangUp
 
     UnregisterDial();
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res == LE_OK)
     {

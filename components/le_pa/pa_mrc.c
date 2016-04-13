@@ -8,9 +8,9 @@
 #include "legato.h"
 
 #include "pa_mrc.h"
-#include "pa_common_local.h"
+#include "pa_utils_local.h"
 
-#include "at/inc/le_atClient.h"
+#include "le_atClient.h"
 
 #define DEFAULT_REGSTATE_POOL_SIZE  1
 
@@ -60,13 +60,13 @@ static void CREGUnsolHandler
     uint32_t  numParam=0;
     le_mrc_NetRegState_t  *statePtr;
 
-    numParam = le_atClient_cmd_CountLineParameter(unsolPtr);
+    numParam = pa_utils_CountAndIsolateLineParameters(unsolPtr);
 
     if ( ThisMode == PA_MRC_ENABLE_REG_NOTIFICATION )
     {
         if (numParam == 2) {
             statePtr = le_mem_ForceAlloc(RegStatePoolRef);
-            switch(atoi(le_atClient_cmd_GetLineParameter(unsolPtr,2)))
+            switch(atoi(pa_utils_IsolateLineParameter(unsolPtr,2)))
             {
                 case 0:
                     *statePtr = LE_MRC_REG_NONE;
@@ -99,7 +99,7 @@ static void CREGUnsolHandler
     {
         if (numParam == 5) {
             statePtr = le_mem_ForceAlloc(RegStatePoolRef);
-            switch(atoi(le_atClient_cmd_GetLineParameter(unsolPtr,2)))
+            switch(atoi(pa_utils_IsolateLineParameter(unsolPtr,2)))
             {
                 case 0:
                     *statePtr = LE_MRC_REG_NONE;
@@ -199,7 +199,7 @@ le_result_t pa_mrc_SetRadioPower
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -225,12 +225,12 @@ le_result_t pa_mrc_GetRadioPower
 
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t res;
-    char firstResponse[COMMAND_LEN_MAX];
-    char finalResponse[COMMAND_LEN_MAX];
+    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
     char* savePtr  = NULL;
     char* tokenPtr = NULL;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res != LE_OK)
     {
@@ -239,7 +239,7 @@ le_result_t pa_mrc_GetRadioPower
     }
     else
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
             LE_ERROR("Failed to get the response");
@@ -247,7 +247,7 @@ le_result_t pa_mrc_GetRadioPower
             return res;
         }
 
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
         if (res != LE_OK)
         {
             LE_DEBUG("Failed to get the response");
@@ -255,7 +255,7 @@ le_result_t pa_mrc_GetRadioPower
             return res;
         }
 
-        tokenPtr = strtok_r(firstResponse, "+CFUN: ", &savePtr);
+        tokenPtr = strtok_r(intermediateResponse, "+CFUN: ", &savePtr);
 
         if(atoi(tokenPtr) != 0)
         {
@@ -373,7 +373,7 @@ le_result_t pa_mrc_ConfigureNetworkReg
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CREG=%d", setting);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -400,8 +400,8 @@ static le_result_t GetNetworkReg
 
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t res;
-    char firstResponse[COMMAND_LEN_MAX];
-    char finalResponse[COMMAND_LEN_MAX];
+    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
     char* tokenPtr = NULL;
     char* rest     = NULL;
     char* savePtr  = NULL;
@@ -412,7 +412,7 @@ static le_result_t GetNetworkReg
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res != LE_OK)
     {
@@ -421,7 +421,7 @@ static le_result_t GetNetworkReg
     }
     else
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
             LE_ERROR("Failed to get the response");
@@ -429,7 +429,7 @@ static le_result_t GetNetworkReg
             return res;
         }
 
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the response");
@@ -437,7 +437,7 @@ static le_result_t GetNetworkReg
             return res;
         }
 
-        rest = firstResponse+strlen("+CREG: ");
+        rest = intermediateResponse+strlen("+CREG: ");
         int32_t val;
 
         tokenPtr = strtok_r(rest, ",", &savePtr);
@@ -573,8 +573,8 @@ le_result_t pa_mrc_GetSignalStrength
 
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t res;
-    char firstResponse[COMMAND_LEN_MAX];
-    char finalResponse[COMMAND_LEN_MAX];
+    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
     char* tokenPtr = NULL;
     char* rest     = NULL;
     char* savePtr  = NULL;
@@ -585,7 +585,7 @@ le_result_t pa_mrc_GetSignalStrength
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res != LE_OK)
     {
@@ -594,7 +594,7 @@ le_result_t pa_mrc_GetSignalStrength
     }
     else
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
             LE_ERROR("Failed to get the response");
@@ -602,7 +602,7 @@ le_result_t pa_mrc_GetSignalStrength
             return res;
         }
 
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the response");
@@ -610,7 +610,7 @@ le_result_t pa_mrc_GetSignalStrength
             return res;
         }
 
-        rest = firstResponse+strlen("+CSQ: ");
+        rest = intermediateResponse+strlen("+CSQ: ");
         int32_t val;
 
         tokenPtr = strtok_r(rest, ",", &savePtr);

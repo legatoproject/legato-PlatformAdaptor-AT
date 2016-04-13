@@ -14,9 +14,9 @@
 
 #include "pa_sms.h"
 #include "pa_sms_local.h"
-#include "pa_common_local.h"
+#include "pa_utils_local.h"
 
-#include "at/inc/le_atClient.h"
+#include "le_atClient.h"
 
 
 #define DEFAULT_SMSREF_POOL_SIZE    1
@@ -43,9 +43,9 @@ static bool Check_smsRefCode
     uint32_t  *msgRef    ///< [OUT] message Reference
 )
 {
-    if (le_atClient_cmd_CountLineParameter(line))
+    if (pa_utils_CountAndIsolateLineParameters(line))
     {
-        *msgRef = atoi(le_atClient_cmd_GetLineParameter(line,3));
+        *msgRef = atoi(pa_utils_IsolateLineParameter(line,3));
 
         LE_DEBUG("SMS message reference %d",*msgRef);
         return true;
@@ -346,7 +346,7 @@ le_result_t pa_sms_SetNewMsgIndic
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CNMI=%d,%d,%d,%d,%d", mode, mt,bm,ds,bfr);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -379,7 +379,7 @@ le_result_t pa_sms_GetNewMsgIndic
     char*                savePtr      = NULL;
     le_atClient_CmdRef_t cmdRef       = NULL;
     le_result_t          res          = LE_OK;
-    char                 firstResponse[50];
+    char                 intermediateResponse[50];
     char                 finalResponse[50];
 
     if (!modePtr && !mtPtr && !bmPtr && !dsPtr && !bfrPtr)
@@ -388,7 +388,7 @@ le_result_t pa_sms_GetNewMsgIndic
         return LE_BAD_PARAMETER;
     }
 
-    le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     res = le_atClient_GetFinalResponse(cmdRef,finalResponse,50);
     if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
@@ -398,9 +398,9 @@ le_result_t pa_sms_GetNewMsgIndic
         return LE_FAULT;
     }
 
-    res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,50);
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
 
-    rest = firstResponse+strlen("+CNMI: ");
+    rest = intermediateResponse+strlen("+CNMI: ");
 
     tokenPtr = strtok_r(rest, ",", &savePtr);
     *modePtr = (pa_sms_NmiMode_t)atoi(tokenPtr);
@@ -443,7 +443,7 @@ le_result_t pa_sms_SetMsgFormat
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CMGF=%d",format);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -515,14 +515,14 @@ int32_t pa_sms_SendPduMsg
 //     {
 //         // it parse just the first line because of '\0'
 //         char* line = GetLine(resRef,0);
-//         uint32_t numParam = le_atClient_cmd_CountLineParameter(line);
+//         uint32_t numParam = pa_utils_CountAndIsolateLineParameters(line);
 //         // it parse just the first line because of '\0'
 //
-//         if (FIND_STRING("+CMGS:",le_atClient_cmd_GetLineParameter(line,1)))
+//         if (FIND_STRING("+CMGS:",pa_utils_IsolateLineParameter(line,1)))
 //         {
 //             if (numParam==2)
 //             {
-//                 result=atoi(le_atClient_cmd_GetLineParameter(line,2));
+//                 result=atoi(pa_utils_IsolateLineParameter(line,2));
 //             } else
 //             {
 //                 LE_WARN("this pattern is not expected");
@@ -557,8 +557,8 @@ int32_t pa_sms_SendPduMsg
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t res;
     int32_t result;
-    char firstResponse[COMMAND_LEN_MAX];
-    char finalResponse[COMMAND_LEN_MAX];
+    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
     if (!dataPtr)
     {
@@ -621,7 +621,7 @@ int32_t pa_sms_SendPduMsg
     }
     else
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
             LE_ERROR("Failed to get the response");
@@ -629,7 +629,7 @@ int32_t pa_sms_SendPduMsg
             return;
         }
 
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,firstResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the response");
@@ -704,14 +704,14 @@ le_result_t pa_sms_RdPDUMsgFromMem
 //     {
 //         // it parse just the first line because of '\0'
 //         char* line = GetLine(resRef,0);
-//         le_atClient_cmd_CountLineParameter(line);
+//         pa_utils_CountAndIsolateLineParameters(line);
 //
 //         // Check is the +CMGR intermediate response is in good format
-//         if (FIND_STRING("+CMGR:",le_atClient_cmd_GetLineParameter(line,1)))
+//         if (FIND_STRING("+CMGR:",pa_utils_IsolateLineParameter(line,1)))
 //         {
 //             const char* pduPtr = GetLine(resRef,1);
 //
-//             msgPtr->status=(le_sms_Status_t)atoi(le_atClient_cmd_GetLineParameter(line,2));
+//             msgPtr->status=(le_sms_Status_t)atoi(pa_utils_IsolateLineParameter(line,2));
 //
 //             int32_t dataSize = le_hex_StringToBinary(pduPtr,strlen(pduPtr),msgPtr->data,LE_SMS_PDU_MAX_BYTES);
 //             if ( dataSize < 0)
@@ -771,8 +771,8 @@ le_result_t pa_sms_ListMsgFromMem
     char*                savePtr      = NULL;
     le_atClient_CmdRef_t cmdRef       = NULL;
     le_result_t          res          = LE_OK;
-    char                 response[COMMAND_LEN_MAX];
-    char                 finalResponse[COMMAND_LEN_MAX];
+    char                 response[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
     // TODO: storage option to manage
 
@@ -784,11 +784,11 @@ le_result_t pa_sms_ListMsgFromMem
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CMGL=%d",status);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     if (res == LE_OK)
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,COMMAND_LEN_MAX);
+        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the response");
@@ -827,9 +827,9 @@ le_result_t pa_sms_ListMsgFromMem
 //     {
 //         char* line = GetLine(resRef,cpt);
 //         // it parse just the first line because of '\0'
-//         uint32_t  numParam = le_atClient_cmd_CountLineParameter(line);
+//         uint32_t  numParam = pa_utils_CountAndIsolateLineParameters(line);
 //
-//         if (FIND_STRING("OK",le_atClient_cmd_GetLineParameter(line,1)))
+//         if (FIND_STRING("OK",pa_utils_IsolateLineParameter(line,1)))
 //         {
 //             result = LE_OK;
 //             break;
@@ -837,9 +837,9 @@ le_result_t pa_sms_ListMsgFromMem
 //         else
 //         {
 //         // Check is the +CMGL intermediate response is in good format
-//             if ((numParam>2) && (FIND_STRING("+CMGL:",le_atClient_cmd_GetLineParameter(line,1))))
+//             if ((numParam>2) && (FIND_STRING("+CMGL:",pa_utils_IsolateLineParameter(line,1))))
 //             {
-//                 idxPtr[cpt]=atoi(le_atClient_cmd_GetLineParameter(line,2));
+//                 idxPtr[cpt]=atoi(pa_utils_IsolateLineParameter(line,2));
 //                 (*numPtr)++;
 //             }
 //             else
@@ -881,7 +881,7 @@ le_result_t pa_sms_DelMsgFromMem
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CMGD=%d,0",index);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -909,7 +909,7 @@ le_result_t pa_sms_DelAllMsg
     le_atClient_CmdRef_t cmdRef       = NULL;
     le_result_t          res          = LE_OK;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -935,7 +935,7 @@ le_result_t pa_sms_SaveSettings
     le_atClient_CmdRef_t cmdRef       = NULL;
     le_result_t          res          = LE_OK;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -961,7 +961,7 @@ le_result_t pa_sms_RestoreSettings
     le_atClient_CmdRef_t cmdRef       = NULL;
     le_result_t          res          = LE_OK;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -1012,7 +1012,7 @@ le_result_t pa_sms_ChangeMessageStatus
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+WMSC=%d,%d", index, status);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;

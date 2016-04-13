@@ -5,10 +5,7 @@
  * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
  */
 
-#include <pthread.h>
-#include <semaphore.h>
-
-#include "at/inc/le_atClient.h"
+#include "le_atClient.h"
 
 #include "pa_mrc.h"
 #include "pa_mrc_local.h"
@@ -20,13 +17,12 @@
 #include "pa_mdc_local.h"
 #include "pa_mcc_local.h"
 #include "pa_ecall.h"
-#include "pa_common_local.h"
+#include "pa_utils_local.h"
 #include "pa_ips.h"
 #include "pa_temp.h"
 #include "pa_antenna.h"
 #include "pa_adc_local.h"
 
-static le_thread_Ref_t  PaThreadRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -37,15 +33,16 @@ static le_thread_Ref_t  PaThreadRef = NULL;
  * @return LE_OK            The function succeeded.
  */
 //--------------------------------------------------------------------------------------------------
-static le_result_t  EnableCMEE()
+static le_result_t  EnableCmee()
 {
-    const char*          commandPtr   = "AT+CMEE=1";
-    const char*          interRespPtr = "\0";
-    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
-    le_atClient_CmdRef_t cmdRef       = NULL;
-    le_result_t          res          = LE_OK;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CMEE=1",
+                                        "\0",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -62,13 +59,14 @@ static le_result_t  EnableCMEE()
 //--------------------------------------------------------------------------------------------------
 static le_result_t  DisableEcho()
 {
-    const char*          commandPtr   = "ATE0";
-    const char*          interRespPtr = "\0";
-    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
-    le_atClient_CmdRef_t cmdRef       = NULL;
-    le_result_t          res          = LE_OK;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "ATE0",
+                                        "\0",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -85,13 +83,14 @@ static le_result_t  DisableEcho()
 //--------------------------------------------------------------------------------------------------
 static le_result_t  SaveSettings()
 {
-    const char*          commandPtr   = "AT&W";
-    const char*          interRespPtr = "\0";
-    const char*          respPtr      = "OK|ERROR|+CME ERROR:";
-    le_atClient_CmdRef_t cmdRef       = NULL;
-    le_result_t          res          = LE_OK;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT&W",
+                                        "\0",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -152,7 +151,7 @@ static le_result_t  SetNewSmsIndication()
  * @return LE_OK            The function succeeded.
  */
 //--------------------------------------------------------------------------------------------------
-static le_result_t DefaultConfig()
+static le_result_t SetDefaultConfig()
 {
     if (DisableEcho()!=LE_OK)
     {
@@ -172,7 +171,7 @@ static le_result_t DefaultConfig()
         return LE_FAULT;
     }
 
-    if (EnableCMEE()!=LE_OK)
+    if (EnableCmee()!=LE_OK)
     {
         LE_WARN("Failed to enable CMEE error");
         return LE_FAULT;
@@ -187,32 +186,6 @@ static le_result_t DefaultConfig()
     return LE_OK;
 }
 
-/**
- * PA Thread main
- *
- */
-
-static void* PAThreadInit(void* context)
-{
-    le_sem_Ref_t semPtr = context;
-
-    pa_common_Init();
-    pa_mrc_Init();
-    pa_sms_Init();
-    pa_sim_Init();
-    pa_mdc_Init();
-    pa_mcc_Init();
-    //pa_ecall_Init(PA_ECALL_PAN_EUROPEAN);
-    pa_ips_Init();
-    pa_temp_Init();
-    pa_antenna_Init();
-    pa_adc_Init();
-
-    le_sem_Post(semPtr);
-    le_event_RunLoop();
-    return NULL;
-}
-
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -222,23 +195,17 @@ static void* PAThreadInit(void* context)
 //--------------------------------------------------------------------------------------------------
 COMPONENT_INIT
 {
-    le_sem_Ref_t semPtr = le_sem_Create("PAStartSem",0);
+    pa_mrc_Init();
+    pa_sms_Init();
+    pa_sim_Init();
+    pa_mdc_Init();
+    pa_mcc_Init();
+    pa_ips_Init();
+    pa_temp_Init();
+    pa_antenna_Init();
+    pa_adc_Init();
 
-    if (PaThreadRef == NULL) {
-
-        PaThreadRef = le_thread_Create("PA",PAThreadInit,semPtr);
-
-    le_thread_Start(PaThreadRef);
-
-    le_sem_Wait(semPtr);
-    LE_INFO("PA is started");
-    le_sem_Delete(semPtr);
-
-    } else {
-        LE_WARN("PA is already initialized");
-    }
-
-    if ( DefaultConfig() != LE_OK )
+    if (SetDefaultConfig() != LE_OK)
     {
         LE_WARN("PA is not configured as expected");
     }

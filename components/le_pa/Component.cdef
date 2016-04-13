@@ -20,7 +20,7 @@ requires:
 sources:
 {
     pa.c
-    pa_common.c
+    pa_utils.c
     pa_info.c
     pa_mcc.c
     pa_mdc.c
@@ -41,6 +41,7 @@ cflags:
     -I$LEGATO_ROOT/components/modemServices/modemDaemon
     -I$LEGATO_ROOT/components/modemServices/platformAdaptor/inc
     -I$LEGATO_ROOT/components
+    -I$LEGATO_ROOT/components/at/inc
 }
 
 requires:
