@@ -11,7 +11,7 @@
 
 //--------------------------------------------------------------------------------------------------
 /**
- * This function must be called to initialize the sms module.
+ * This function must be called to initialize the ADC module.
  *
  * @return LE_FAULT         The function failed to initialize the module.
  * @return LE_OK            The function succeeded.
