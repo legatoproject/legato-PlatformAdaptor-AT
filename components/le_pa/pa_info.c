@@ -6,12 +6,11 @@
  * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
  */
 
-
 #include "legato.h"
+#include "le_atClient.h"
+
 #include "pa_info.h"
-
-
-
+#include "pa_utils_local.h"
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -27,15 +26,58 @@ le_result_t pa_info_GetImei
     pa_info_Imei_t imei   ///< [OUT] IMEI value
 )
 {
-    //To do
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
-    return LE_OK;
+    if (!imei)
+    {
+        LE_DEBUG("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CGSN",
+                                        "0|1|2|3|4|5|6|7|8|9",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        strncpy(imei, intermediateResponse, strlen(intermediateResponse));
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Get the firmware version string
+ * Get the firmware version string.
  *
  * @return
  *      - LE_OK on success
@@ -45,17 +87,62 @@ le_result_t pa_info_GetImei
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetFirmwareVersion
 (
-    char* versionPtr,        ///< [OUT] Firmware version string
-    size_t versionSize       ///< [IN] Size of version buffer
+    char*  versionPtr,       ///< [OUT] Firmware version string.
+    size_t versionSize       ///< [IN] Size of version buffer.
 )
 {
-    return LE_NOT_FOUND;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    if (!versionPtr)
+    {
+        LE_DEBUG("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CGMR",
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        strncpy(versionPtr, intermediateResponse, versionSize);
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Get the bootloader version string
+ * Get the bootloader version string.
  *
  * @return
  *      - LE_OK on success
@@ -65,11 +152,11 @@ le_result_t pa_info_GetFirmwareVersion
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetBootloaderVersion
 (
-    char* versionPtr,        ///< [OUT] Firmware version string
-    size_t versionSize       ///< [IN] Size of version buffer
+    char*  versionPtr,       ///< [OUT] Firmware version string.
+    size_t versionSize       ///< [IN] Size of version buffer.
 )
 {
-    return LE_NOT_FOUND;
+    return LE_FAULT;
 }
 
 
@@ -88,9 +175,51 @@ le_result_t pa_info_GetDeviceModel
     pa_info_DeviceModel_t model   ///< [OUT] Model string (null-terminated).
 )
 {
-    //To do
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
-    return LE_FAULT;
+    if (!model)
+    {
+        LE_DEBUG("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CGMM",
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        strncpy(model, intermediateResponse, strlen(intermediateResponse));
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 
@@ -106,8 +235,8 @@ le_result_t pa_info_GetDeviceModel
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetMeid
 (
-    char* meidStr,           ///< [OUT] Firmware version string
-    size_t meidStrSize       ///< [IN] Size of version buffer
+    char*  meidStr,          ///< [OUT] Firmware version string.
+    size_t meidStrSize       ///< [IN] Size of version buffer.
 )
 {
     return LE_FAULT;
@@ -126,8 +255,8 @@ le_result_t pa_info_GetMeid
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetMin
 (
-    char        *minStr,    ///< [OUT] The phone Number
-    size_t       minStrSize ///< [IN]  Size of phoneNumberStr
+    char*        minStr,        ///< [OUT] The phone Number.
+    size_t       minStrSize     ///< [IN]  Size of phoneNumberStr.
 )
 {
     return LE_FAULT;
@@ -146,13 +275,8 @@ le_result_t pa_info_GetMin
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetEsn
 (
-    char* esnStr,
-        ///< [OUT]
-        ///< The Electronic Serial Number (ESN) of the device
-        ///<  string (null-terminated).
-
-    size_t esnStrNumElements
-        ///< [IN]
+    char*  esnStr,            ///< [OUT] The Electronic Serial Number (ESN) of the device string (null-terminated).
+    size_t esnStrNumElements  ///< [IN] Size of Electronic Serial Number string.
 )
 {
     return LE_FAULT;
@@ -171,13 +295,8 @@ le_result_t pa_info_GetEsn
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetMdn
 (
-    char* mdnStr,
-        ///< [OUT]
-        ///< The Mobile Directory Number (MDN)
-        ///<  string (null-terminated).
-
-    size_t mdnStrNumElements
-        ///< [IN]
+    char*  mdnStr,            ///< [OUT] The Mobile Directory Number (MDN) string (null-terminated).
+    size_t mdnStrNumElements  ///< [IN] Size of Mobile Directory Number string.
 )
 {
     return LE_FAULT;
@@ -195,9 +314,7 @@ le_result_t pa_info_GetMdn
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetPrlVersion
 (
-    uint16_t* prlVersionPtr
-        ///< [OUT]
-        ///< The Preferred Roaming List (PRL) version.
+    uint16_t* prlVersionPtr   ///< [OUT] The Preferred Roaming List (PRL) version.
 )
 {
     return LE_FAULT;
@@ -206,7 +323,7 @@ le_result_t pa_info_GetPrlVersion
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Get the Cdma PRL only preferences Flag.
+ * Get the CDMA PRL only preferences Flag.
  *
  * @return
  *      - LE_OK            The function succeeded.
@@ -216,7 +333,7 @@ le_result_t pa_info_GetPrlVersion
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetPrlOnlyPreference
 (
-    bool* prlOnlyPreferencePtr      ///< The Cdma PRL only preferences status.
+    bool* prlOnlyPreferencePtr   ///< The Cdma PRL only preferences status.
 )
 {
     return LE_FAULT;
@@ -235,13 +352,8 @@ le_result_t pa_info_GetPrlOnlyPreference
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetNai
 (
-    char* naiStr,
-        ///< [OUT]
-        ///< The Network Access Identifier (NAI)
-        ///<  string (null-terminated).
-
-    size_t naiStrNumElements
-        ///< [IN]
+    char*  naiStr,            ///< [OUT] The Network Access Identifier (NAI) string (null-terminated).
+    size_t naiStrNumElements  ///< [IN] Size of Network Access Identifier string.
 )
 {
     return LE_FAULT;
@@ -259,15 +371,56 @@ le_result_t pa_info_GetNai
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetManufacturerName
 (
-    char* mfrNameStr,
-        ///< [OUT]
-        ///< The Manufacturer Name string (null-terminated).
-
-    size_t mfrNameStrNumElements
-        ///< [IN]
+    char*  mfrNameStr,              ///< [OUT] The Manufacturer Name string (null-terminated).
+    size_t mfrNameStrNumElements    ///< [IN] Size of Manufacturer Name string.
 )
 {
-    return LE_FAULT;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    if (!mfrNameStr)
+    {
+        LE_DEBUG("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CGMI",
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        strncpy(mfrNameStr, intermediateResponse, mfrNameStrNumElements);
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -282,26 +435,17 @@ le_result_t pa_info_GetManufacturerName
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetPriId
 (
-    char* priIdPnStr,
-        ///< [OUT]
-        ///< The Product Requirement Information Identifier
-        ///<  (PRI ID) Part Number string (null-terminated).
-
-    size_t priIdPnStrNumElements,
-        ///< [IN]
-
-    char* priIdRevStr,
-        ///< [OUT]
-        ///< The Product Requirement Information Identifier
-        ///<  (PRI ID) Revision Number string (null-terminated).
-
-    size_t priIdRevStrNumElements
-        ///< [IN]
+    char*  priIdPnStr,              ///< [OUT] The Product Requirement Information Identifier
+                                    ///<       (PRI ID) Part Number string (null-terminated).
+    size_t priIdPnStrNumElements,   ///< [IN] Size of Product Requirement Information Identifier string.
+    char*  priIdRevStr,             ///< [OUT] The Product Requirement Information Identifier
+                                    ///<       (PRI ID) Revision Number string (null-terminated).
+    size_t priIdRevStrNumElements   ///< [IN] Size of Product Requirement Information Identifier string.
 )
 {
     le_result_t res = LE_FAULT;
 
-    if ( (priIdPnStr == NULL) || (priIdRevStr == NULL))
+    if ((priIdPnStr == NULL) || (priIdRevStr == NULL))
     {
         LE_ERROR("priIdPnStr or priIdRevStr is NULL.");
         return LE_FAULT;
@@ -310,14 +454,16 @@ le_result_t pa_info_GetPriId
     if (priIdPnStrNumElements < LE_INFO_MAX_PRIID_PN_BYTES)
     {
         LE_ERROR("priIdPnStrNumElements lentgh (%d) too small < %d",
-                        (int) priIdPnStrNumElements, LE_INFO_MAX_PRIID_PN_BYTES);
+                 (int) priIdPnStrNumElements,
+                 LE_INFO_MAX_PRIID_PN_BYTES);
         res = LE_OVERFLOW;
     }
 
     if (priIdRevStrNumElements < LE_INFO_MAX_PRIID_REV_BYTES)
     {
         LE_ERROR("priIdRevStrNumElements lentgh (%d) too small < %d",
-                        (int) priIdRevStrNumElements, LE_INFO_MAX_PRIID_REV_BYTES);
+                 (int) priIdRevStrNumElements,
+                 LE_INFO_MAX_PRIID_REV_BYTES);
         res = LE_OVERFLOW;
     }
 
@@ -336,12 +482,8 @@ le_result_t pa_info_GetPriId
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetPlatformSerialNumber
 (
-    char* platformSerialNumberStr,
-        ///< [OUT]
-        ///< Platform Serial Number string.
-
-    size_t platformSerialNumberStrNumElements
-        ///< [IN]
+    char*  platformSerialNumberStr,             ///< [OUT] Platform Serial Number string.
+    size_t platformSerialNumberStrNumElements   ///< [IN] Size of Platform Serial Number string.
 )
 {
     return LE_FAULT;
