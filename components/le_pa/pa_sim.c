@@ -14,28 +14,49 @@
 
 #define DEFAULT_SIMEVENT_POOL_SIZE  1
 
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Sim memory pool
+ */
+//--------------------------------------------------------------------------------------------------
 static le_mem_PoolRef_t   SimEventPoolRef;
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Unsolicited event
+ */
+//--------------------------------------------------------------------------------------------------
 static le_event_Id_t      EventUnsolicitedId;
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Sim Status event
+ */
+//--------------------------------------------------------------------------------------------------
 static le_event_Id_t      EventNewSimStateId;
 
-static le_sim_Id_t        UimSelect = LE_SIM_EXTERNAL_SLOT_1; // external SIM selected by default
-
-
+//--------------------------------------------------------------------------------------------------
 /**
- * This function must be called to translate the code status for +CMS ERROR parsing
+ * External SIM selected by default
+ */
+//--------------------------------------------------------------------------------------------------
+static le_sim_Id_t        UimSelect = LE_SIM_EXTERNAL_SLOT_1;
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to translate the code status for +CMS ERROR parsing.
  *
  */
 //--------------------------------------------------------------------------------------------------
-static void CheckStatus_CmsErrorCode
+static void CheckCmsErrorCode
 (
-    const char      *valPtr,  ///< [IN] the value to change
-    le_sim_States_t *statePtr  ///< [OUT] SIM state
+    const char*       valPtr,   ///< [IN] the value to change
+    le_sim_States_t*  statePtr  ///< [OUT] SIM state
 )
 {
-    uint32_t value = atoi(valPtr);
-
-    switch (value)
+    switch (atoi(valPtr))
     {
         case 310:   /*SIM not inserted*/
         {
@@ -74,39 +95,34 @@ static void CheckStatus_CmsErrorCode
  *
  */
 //--------------------------------------------------------------------------------------------------
-static void CheckStatus_CmeErrorCode
+static void CheckCmeErrorCode
 (
-    const char      *valPtr,  ///< [IN] the value to change
-    le_sim_States_t *statePtr  ///< [OUT] SIM state
+    const char*      valPtr,   ///< [IN] the value to change
+    le_sim_States_t* statePtr  ///< [OUT] SIM state
 )
 {
-    uint32_t value = atoi(valPtr);
-
-    switch (value)
+    switch (atoi(valPtr))
     {
 
-        case 5:     /*PH-SIM PIN required (SIM lock)*/
-        case 11:    /*SIM PIN required*/
-        case 16:    /*Incorrect password Bad user pin*/
-        case 17:    /*SIM PIN2 required*/
+        case 5:     /* PH-SIM PIN required (SIM lock) */
+        case 11:    /* SIM PIN required */
+        case 16:    /* Incorrect password Bad user pin */
+        case 17:    /* SIM PIN2 required */
         {
             *statePtr = LE_SIM_INSERTED;
             break;
         }
-        case 10:    /*SIM not inserted*/
+        case 10:    /* SIM not inserted */
         {
             *statePtr = LE_SIM_ABSENT;
             break;
         }
-        case 12:    /*SIM PUK required*/
-        case 18:    /*SIM PUK2 required*/
+        case 12:    /* SIM PUK required */
+        case 18:    /* SIM PUK2 required */
         {
             *statePtr = LE_SIM_BLOCKED;
             break;
         }
-        case 3:
-        case 4:
-        case 13:
         default:
         {
             *statePtr = LE_SIM_STATE_UNKNOWN;
@@ -120,13 +136,12 @@ static void CheckStatus_CmeErrorCode
  *
  */
 //--------------------------------------------------------------------------------------------------
-static void CheckStatus_CpinCode
+static void CheckCpinCode
 (
-    const char      *valPtr,   ///< [IN] the value to change
-    le_sim_States_t *statePtr  ///< [OUT] SIM state
+    const char*      valPtr,   ///< [IN] the value to change
+    le_sim_States_t* statePtr  ///< [OUT] SIM state
 )
 {
-
     if          (strcmp(valPtr,"READY")==0)
     {
         *statePtr = LE_SIM_READY;
@@ -155,7 +170,6 @@ static void CheckStatus_CpinCode
     }
 }
 
-
 //--------------------------------------------------------------------------------------------------
 /**
  * This function is called to check the status of a line received
@@ -166,17 +180,19 @@ static void CheckStatus_CpinCode
 //--------------------------------------------------------------------------------------------------
 static bool CheckStatus
 (
-    const char      *lineStr, ///< [IN] line to parse
-    le_sim_States_t *statePtr ///< [OUT] SIM state
+    const char*      lineStr,   ///< [IN] line to parse
+    le_sim_States_t* statePtr   ///< [OUT] SIM state
 )
 {
-    *statePtr = LE_SIM_STATE_UNKNOWN;
-    le_result_t result = true;
-#define MAXLINE     18
-    char line[MAXLINE+1];
+    #define MAXLINE     18
 
+    char line[MAXLINE+1];
     memcpy(line,lineStr,MAXLINE);
+
     line[MAXLINE] = '\0';
+   *statePtr      = LE_SIM_STATE_UNKNOWN;
+
+    le_result_t result = true;
 
     pa_utils_CountAndIsolateLineParameters(line);
 
@@ -186,21 +202,21 @@ static bool CheckStatus
     }
     else if (FIND_STRING("+CME ERROR:",pa_utils_IsolateLineParameter(line,1)))
     {
-        CheckStatus_CmeErrorCode(pa_utils_IsolateLineParameter(line,2),statePtr);
+        CheckCmeErrorCode(pa_utils_IsolateLineParameter(line,2),statePtr);
     }
     else if (FIND_STRING("+CMS ERROR:",pa_utils_IsolateLineParameter(line,1)))
     {
-        CheckStatus_CmsErrorCode(pa_utils_IsolateLineParameter(line,2),statePtr);
+        CheckCmsErrorCode(pa_utils_IsolateLineParameter(line,2),statePtr);
     }
     else if (FIND_STRING("+CPIN:",pa_utils_IsolateLineParameter(line,1)))
     {
-        CheckStatus_CpinCode(pa_utils_IsolateLineParameter(line,2),statePtr);
+        CheckCpinCode(pa_utils_IsolateLineParameter(line,2),statePtr);
     }
     else
     {
         LE_DEBUG("this pattern is not expected -%s-",line);
-        *statePtr = LE_SIM_STATE_UNKNOWN;
-        result = false;
+       *statePtr = LE_SIM_STATE_UNKNOWN;
+        result   = false;
     }
 
     LE_DEBUG("SIM Card Status %d",*statePtr);
@@ -214,7 +230,7 @@ static bool CheckStatus
  *
  */
 //--------------------------------------------------------------------------------------------------
-static void ReportStatus
+static void ReportState
 (
     uint32_t        simCard,  ///< [IN] Sim Card Number
     le_sim_States_t simState  ///< [IN] Sim Card Status
@@ -234,25 +250,25 @@ static void ReportStatus
  *
  */
 //--------------------------------------------------------------------------------------------------
-static void SIMUnsolHandler
+static void SimUnsolicitedHandler
 (
     void* reportPtr
 )
 {
-    char* unsolPtr = reportPtr;
-
+    char*           unsolPtr = reportPtr;
     le_sim_States_t simState = LE_SIM_STATE_UNKNOWN;
 
     if (CheckStatus(unsolPtr,&simState))
     {
-        ReportStatus(UimSelect,simState);
+        ReportState(UimSelect,simState);
     }
 }
 
-
+//--------------------------------------------------------------------------------------------------
+// APIs.
 //--------------------------------------------------------------------------------------------------
 /**
- * This function must be called to initialize the sim module
+ * This function must be called to initialize the sim module.
  *
  * @return LE_FAULT         The function failed to initialize the module.
  * @return LE_OK            The function succeeded.
@@ -263,18 +279,12 @@ le_result_t pa_sim_Init
     void
 )
 {
-//     if (AllPorts[ATPORT_COMMAND]==NULL) {
-//         LE_DEBUG("SIM Module is not initialize in this session");
-//         return LE_FAULT;
-//     }
-
     SimEventPoolRef = le_mem_CreatePool("SimEventPool", sizeof(pa_sim_Event_t));
-    SimEventPoolRef = le_mem_ExpandPool(SimEventPoolRef,DEFAULT_SIMEVENT_POOL_SIZE);
+    SimEventPoolRef = le_mem_ExpandPool(SimEventPoolRef, DEFAULT_SIMEVENT_POOL_SIZE);
 
-    EventUnsolicitedId    = le_event_CreateId("SIMEventIdUnsol",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-    EventNewSimStateId    = le_event_CreateIdWithRefCounting("SIMEventIdNewState");
-    le_event_AddHandler("SIMUnsolHandler",EventUnsolicitedId  ,SIMUnsolHandler);
-
+    EventUnsolicitedId = le_event_CreateId("SIMEventIdUnsol", LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    EventNewSimStateId = le_event_CreateIdWithRefCounting("SIMEventIdNewState");
+    le_event_AddHandler("SimUnsolicitedHandler", EventUnsolicitedId, SimUnsolicitedHandler);
 
     return LE_OK;
 }
@@ -282,7 +292,7 @@ le_result_t pa_sim_Init
 
 //--------------------------------------------------------------------------------------------------
 /**
- * This function counts number of sim card available
+ * This function counts number of sim card available.
  *
  * @return LE_FAULT         The function failed.
  * @return LE_TIMEOUT       No response was received.
@@ -294,8 +304,7 @@ uint32_t pa_sim_CountSlots
     void
 )
 {
-     uint32_t numberOfSim = 1;
-     return numberOfSim;
+     return 1;
 }
 
 
@@ -336,7 +345,7 @@ le_result_t pa_sim_GetSelectedCard
     le_sim_Id_t*  cardIdPtr     ///< [OUT] The card number selected.
 )
 {
-    *cardIdPtr = 1;
+   *cardIdPtr = 1;
     return LE_OK;
 }
 
@@ -355,16 +364,11 @@ le_result_t pa_sim_GetCardIdentification
     pa_sim_CardId_t iccid     ///< [OUT] CCID value
 )
 {
-    const char* commandPtr     = "AT+CCID";
-    const char* interRespPtr   = "+CCID:";
-    const char* respPtr        = "\0";
-
-    le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
-    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char* tokenPtr;
-    char* savePtr;
+    le_atClient_CmdRef_t cmdRef   = NULL;
+    char*                tokenPtr = NULL;
+    le_result_t          res      = LE_OK;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
     if (!iccid)
     {
@@ -372,40 +376,46 @@ le_result_t pa_sim_GetCardIdentification
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CCID",
+                                        "+CCID:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
 
     if (res != LE_OK)
     {
-        le_atClient_Delete(cmdRef);
+        LE_ERROR("Failed to send the command");
         return res;
     }
-    else
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
-        if (res != LE_OK)
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        // Cut the string for keep just the CCID number
-        tokenPtr = strtok_r(intermediateResponse, "\"", &savePtr);
-        tokenPtr = strtok_r(NULL, "\"", &savePtr);
-
-        strncpy(iccid, tokenPtr, strlen(tokenPtr));
-
+        LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
     }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    // Cut the string for keep just the CCID number
+    tokenPtr = strtok(intermediateResponse,"+CCID: ");
+    strncpy(iccid, tokenPtr, strlen(tokenPtr));
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 
@@ -424,14 +434,10 @@ le_result_t pa_sim_GetIMSI
     pa_sim_Imsi_t imsi   ///< [OUT] IMSI value
 )
 {
-    const char* commandPtr       = "AT+CIMI";
-    const char* interRespPtr     = "0|1|2|3|4|5|6|7|8|9";
-    const char* respPtr          = "\0";
-
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
-    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    le_result_t          res    = LE_OK;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
     if (!imsi)
     {
@@ -439,36 +445,44 @@ le_result_t pa_sim_GetIMSI
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CIMI",
+                                        "0|1|2|3|4|5|6|7|8|9",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
 
     if (res != LE_OK)
     {
-        le_atClient_Delete(cmdRef);
+        LE_ERROR("Failed to send the command");
         return res;
     }
-    else
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
-        if (res != LE_OK)
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        strncpy(imsi, intermediateResponse, strlen(intermediateResponse));
-
+        LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
     }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    strncpy(imsi, intermediateResponse, strlen(intermediateResponse));
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 
@@ -487,13 +501,9 @@ le_result_t pa_sim_GetState
     le_sim_States_t* statePtr    ///< [OUT] SIM state
 )
 {
-    const char* commandPtr     = "AT+CPIN?";
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "+CPIN:|ERROR|+CME ERROR:";
-
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
-    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    le_result_t          res    = LE_OK;
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
     if (!statePtr)
     {
@@ -501,25 +511,36 @@ le_result_t pa_sim_GetState
         return LE_BAD_PARAMETER;
     }
 
-    *statePtr = LE_SIM_STATE_UNKNOWN;
+   *statePtr = LE_SIM_STATE_UNKNOWN;
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CPIN?",
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
 
-    if (res == LE_OK)
+    if (res != LE_OK)
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-        if (res != LE_OK)
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        if (CheckStatus(finalResponse,statePtr))
-        {
-            ReportStatus(UimSelect,*statePtr);
-        }
+        LE_ERROR("Failed to send the command");
+        return res;
     }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    if (CheckStatus(finalResponse,statePtr))
+    {
+        ReportState(UimSelect,*statePtr);
+    }
+
     le_atClient_Delete(cmdRef);
     return res;
 }
@@ -541,10 +562,7 @@ le_event_HandlerRef_t pa_sim_AddNewStateHandler
 {
     LE_DEBUG("Set new SIM State handler");
 
-    if (handler==NULL)
-    {
-        LE_FATAL("new SIM State handler is NULL");
-    }
+    LE_FATAL_IF(handler == NULL, "New SIM State handler is NULL");
 
     return (le_event_AddHandler("NewSIMStateHandler",
                                 EventNewSimStateId,
@@ -583,16 +601,23 @@ le_result_t pa_sim_EnterPIN
     const pa_sim_Pin_t pin    ///< [IN] pin code
 )
 {
-    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "\0";
-
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
+    le_result_t          res    = LE_OK;
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CPIN=%s",pin);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        command,
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -619,16 +644,23 @@ le_result_t pa_sim_EnterPUK
     const pa_sim_Pin_t pin   ///< [IN] new PIN code
 )
 {
-    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "\0";
-
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
+    le_result_t          res    = LE_OK;
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CPIN=%s,%s",puk,pin);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        command,
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -651,70 +683,7 @@ static le_result_t pa_sim_GetRemainingAttempts
     uint32_t* attemptsPtr  ///< [OUT] The number of attempts still possible
 )
 {
-    const char* commandPtr     = "AT+CPINC";
-    const char* interRespPtr   = "+CPINC:";
-    const char* respPtr        = "\0";
-
-    char intermediateResponse[50];
-    char finalResponse[50];
-    char* tokenPtr              = NULL;
-    char* rest                  = NULL;
-    char* savePtr               = NULL;
-    le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
-
-    if (!attemptsPtr)
-    {
-        LE_DEBUG("One parameter is NULL");
-        return LE_BAD_PARAMETER;
-    }
-
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
-
-    if (res != LE_OK)
-    {
-        le_atClient_Delete(cmdRef);
-        return res;
-    }
-    else
-    {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,50);
-        if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
-        {
-            LE_ERROR("Function failed !");
-            le_atClient_Delete(cmdRef);
-            return LE_FAULT;
-        }
-
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
-        if (res != LE_OK)
-        {
-            LE_ERROR("Failed to get the response !");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        rest = intermediateResponse+strlen("+CPINC: ");
-        int i = 0;
-
-        tokenPtr = strtok_r(rest, ",", &savePtr);
-
-        while ((i < idx) && tokenPtr)
-        {
-            tokenPtr = strtok_r(NULL, ",", &savePtr);
-            i++;
-        }
-
-        if (tokenPtr)
-        {
-            *attemptsPtr = atoi(tokenPtr);
-            le_atClient_Delete(cmdRef);
-            return LE_OK;
-        }
-
-        le_atClient_Delete(cmdRef);
-        return res;
-    }
+    return LE_FAULT;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -794,12 +763,9 @@ le_result_t pa_sim_ChangePIN
     const pa_sim_Pin_t newcode  ///< [IN] New code
 )
 {
-    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "\0";
-
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
+    le_result_t          res    = LE_OK;
 
     if (type==PA_SIM_PIN)
     {
@@ -814,7 +780,17 @@ le_result_t pa_sim_ChangePIN
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        command,
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -837,12 +813,9 @@ le_result_t pa_sim_EnablePIN
     const pa_sim_Pin_t code   ///< [IN] code
 )
 {
-    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "\0";
-
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
+    le_result_t          res    = LE_OK;
 
     if (type==PA_SIM_PIN)
     {
@@ -857,7 +830,17 @@ le_result_t pa_sim_EnablePIN
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        command,
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -880,14 +863,11 @@ le_result_t pa_sim_DisablePIN
     const pa_sim_Pin_t code   ///< [IN] code
 )
 {
-    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "\0";
-
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
+    le_result_t          res    = LE_OK;
 
-    if (type==PA_SIM_PIN)
+    if      (type==PA_SIM_PIN)
     {
         snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"at+clck=\"SC\",0,%s",code);
     }
@@ -900,7 +880,17 @@ le_result_t pa_sim_DisablePIN
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        command,
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -921,11 +911,11 @@ le_result_t pa_sim_DisablePIN
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_GetSubscriberPhoneNumber
 (
-    char        *phoneNumberStr,    ///< [OUT] The phone Number
+    char*        phoneNumberStr,    ///< [OUT] The phone Number
     size_t       phoneNumberStrSize ///< [IN]  Size of phoneNumberStr
 )
 {
-    return le_utf8_Copy(phoneNumberStr,"",phoneNumberStrSize, NULL);
+    return LE_FAULT;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -940,11 +930,64 @@ le_result_t pa_sim_GetSubscriberPhoneNumber
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_GetHomeNetworkOperator
 (
-    char       *nameStr,               ///< [OUT] the home network Name
+    char*       nameStr,               ///< [OUT] the home network Name
     size_t      nameStrSize            ///< [IN] the nameStr size
 )
 {
-    return LE_FAULT;
+    le_result_t          res      = LE_OK;
+    le_atClient_CmdRef_t cmdRef   = NULL;
+    char*                tokenPtr = NULL;
+    char*                savePtr  = NULL;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    if (!nameStr)
+    {
+        LE_DEBUG("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+COPS?",
+                                        "+COPS:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    // Cut the string for keep just the phone number
+    tokenPtr = strtok_r(intermediateResponse, "\"", &savePtr);
+    tokenPtr = strtok_r(NULL, "\"", &savePtr);
+    strncpy(nameStr, tokenPtr, nameStrSize);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -959,9 +1002,9 @@ le_result_t pa_sim_GetHomeNetworkOperator
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_GetHomeNetworkMccMnc
 (
-    char     *mccPtr,                ///< [OUT] Mobile Country Code
+    char*     mccPtr,                ///< [OUT] Mobile Country Code
     size_t    mccPtrSize,            ///< [IN] mccPtr buffer size
-    char     *mncPtr,                ///< [OUT] Mobile Network Code
+    char*     mncPtr,                ///< [OUT] Mobile Network Code
     size_t    mncPtrSize             ///< [IN] mncPtr buffer size
 )
 {
@@ -1085,7 +1128,7 @@ le_result_t pa_sim_RemoveSimToolkitEventHandler
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_ConfirmSimToolkitCommand
 (
-    bool  confirmation ///< [IN] true to accept, false to reject
+    bool  confirmation  ///< [IN] true to accept, false to reject
 )
 {
     return LE_FAULT;
@@ -1106,51 +1149,18 @@ le_result_t pa_sim_ConfirmSimToolkitCommand
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_SendCommand
 (
-    le_sim_Command_t command,
-        ///< [IN]
-        ///< The SIM command.
-
-    const char* fileIdentifier,
-        ///< [IN]
-        ///< File identifier
-
-    uint8_t p1,
-        ///< [IN]
-        ///< Parameter P1 passed to the SIM
-
-    uint8_t p2,
-        ///< [IN]
-        ///< Parameter P2 passed to the SIM
-
-    uint8_t p3,
-        ///< [IN]
-        ///< Parameter P3 passed to the SIM
-
-    const uint8_t* dataPtr,
-        ///< [IN]
-        ///< data command.
-
-    size_t dataNumElements,
-        ///< [IN]
-
-    const char* path,
-        ///< [IN]
-        ///< path of the elementary file
-
-    uint8_t* sw1Ptr,
-        ///< [OUT]
-        ///< SW1 received from the SIM
-
-    uint8_t* sw2Ptr,
-        ///< [OUT]
-        ///< SW2 received from the SIM
-
-    uint8_t* responsePtr,
-        ///< [OUT]
-        ///< SIM response.
-
-    size_t* responseNumElementsPtr
-        ///< [INOUT]
+    le_sim_Command_t command,               ///< [IN] The SIM command
+    const char*      fileIdentifier,        ///< [IN] File identifier
+    uint8_t          p1,                    ///< [IN] Parameter P1 passed to the SIM
+    uint8_t          p2,                    ///< [IN] Parameter P2 passed to the SIM
+    uint8_t          p3,                    ///< [IN] Parameter P3 passed to the SIM
+    const uint8_t*   dataPtr,               ///< [IN] Data command
+    size_t           dataNumElements,       ///< [IN] Size of data command
+    const char*      path,                  ///< [IN] Path of the elementary file
+    uint8_t*         sw1Ptr,                ///< [OUT] SW1 received from the SIM
+    uint8_t*         sw2Ptr,                ///< [OUT] SW2 received from the SIM
+    uint8_t*         responsePtr,           ///< [OUT] SIM response
+    size_t*          responseNumElementsPtr ///< [IN/OUT] Size of response
 )
 {
     return LE_FAULT;
