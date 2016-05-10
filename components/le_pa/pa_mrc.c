@@ -6,20 +6,47 @@
  */
 
 #include "legato.h"
+#include "le_atClient.h"
 
 #include "pa_mrc.h"
 #include "pa_utils_local.h"
 
-#include "le_atClient.h"
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Memory pool default value
+ */
+//--------------------------------------------------------------------------------------------------
 #define DEFAULT_REGSTATE_POOL_SIZE  1
 
-static le_mem_PoolRef_t       RegStatePoolRef;
+//--------------------------------------------------------------------------------------------------
+/**
+ * Memory pool reference
+ */
+//--------------------------------------------------------------------------------------------------
+static le_mem_PoolRef_t           RegStatePoolRef;
 
-static le_event_Id_t          EventUnsolicitedId;
-static le_event_Id_t          EventNewRcStatusId;
+//--------------------------------------------------------------------------------------------------
+/**
+ * Unsolicited event identifier
+ */
+//--------------------------------------------------------------------------------------------------
+static le_event_Id_t              UnsolicitedEventId;
 
-static pa_mrc_NetworkRegSetting_t ThisMode=PA_MRC_DISABLE_REG_NOTIFICATION;
+//--------------------------------------------------------------------------------------------------
+/**
+ * Network registering event identifier
+ */
+//--------------------------------------------------------------------------------------------------
+static le_event_Id_t              NetworkRegEventId;
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Network registering mode
+ */
+//--------------------------------------------------------------------------------------------------
+static pa_mrc_NetworkRegSetting_t RegNotification = PA_MRC_DISABLE_REG_NOTIFICATION;
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -32,16 +59,16 @@ static void SubscribeUnsolCREG
     pa_mrc_NetworkRegSetting_t  mode ///< [IN] The selected Network registration mode.
 )
 {
-    le_atClient_RemoveUnsolicitedResponseHandler(EventUnsolicitedId,"+CREG:");
+    le_atClient_RemoveUnsolicitedResponseHandler(UnsolicitedEventId,"+CREG:");
 
     if ((mode==PA_MRC_ENABLE_REG_NOTIFICATION) || (mode==PA_MRC_ENABLE_REG_LOC_NOTIFICATION))
     {
-        le_atClient_AddUnsolicitedResponseHandler(EventUnsolicitedId,
-                                       "+CREG:",
-                                       false);
+        le_atClient_AddUnsolicitedResponseHandler(UnsolicitedEventId,
+                                                  "+CREG:",
+                                                  false);
     }
 
-    ThisMode=mode;
+    RegNotification = mode;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -55,16 +82,16 @@ static void CREGUnsolHandler
     void* reportPtr
 )
 {
-    char* unsolPtr = reportPtr;
-
-    uint32_t  numParam=0;
-    le_mrc_NetRegState_t  *statePtr;
+    char*                 unsolPtr = reportPtr;
+    uint32_t              numParam = 0;
+    le_mrc_NetRegState_t* statePtr;
 
     numParam = pa_utils_CountAndIsolateLineParameters(unsolPtr);
 
-    if ( ThisMode == PA_MRC_ENABLE_REG_NOTIFICATION )
+    if (RegNotification == PA_MRC_ENABLE_REG_NOTIFICATION)
     {
-        if (numParam == 2) {
+        if (numParam == 2)
+        {
             statePtr = le_mem_ForceAlloc(RegStatePoolRef);
             switch(atoi(pa_utils_IsolateLineParameter(unsolPtr,2)))
             {
@@ -91,13 +118,17 @@ static void CREGUnsolHandler
                     break;
             }
             LE_DEBUG("Send Event with state %d",*statePtr);
-            le_event_ReportWithRefCounting(EventNewRcStatusId,statePtr);
-        } else {
+            le_event_ReportWithRefCounting(NetworkRegEventId,statePtr);
+        }
+        else
+        {
             LE_WARN("this Response pattern is not expected -%s-",unsolPtr);
         }
-    } else if (ThisMode == PA_MRC_ENABLE_REG_LOC_NOTIFICATION)
+    }
+    else if (RegNotification == PA_MRC_ENABLE_REG_LOC_NOTIFICATION)
     {
-        if (numParam == 5) {
+        if (numParam == 5)
+        {
             statePtr = le_mem_ForceAlloc(RegStatePoolRef);
             switch(atoi(pa_utils_IsolateLineParameter(unsolPtr,2)))
             {
@@ -124,12 +155,171 @@ static void CREGUnsolHandler
                     break;
             }
             LE_DEBUG("Send Event with state %d",*statePtr);
-            le_event_ReportWithRefCounting(EventNewRcStatusId,statePtr);
-        } else {
+            le_event_ReportWithRefCounting(NetworkRegEventId,statePtr);
+        }
+        else
+        {
             LE_WARN("this Response pattern is not expected -%s-",unsolPtr);
         }
     }
 }
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function set text or number mode for get the network operator.
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+static le_result_t SetOperatorTextMode
+(
+    bool    text
+)
+{
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_FAULT;
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    if (text == true)
+    {
+        res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            "AT+COPS=3,0",
+                                            "",
+                                            DEFAULT_AT_RESPONSE,
+                                            DEFAULT_AT_CMD_TIMEOUT);
+    }
+    else
+    {
+        res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            "AT+COPS=3,2",
+                                            "",
+                                            DEFAULT_AT_RESPONSE,
+                                            DEFAULT_AT_CMD_TIMEOUT);
+    }
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+    }
+
+    le_atClient_Delete(cmdRef);
+    return res;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function gets information of the Network registration.
+ *
+ * @return LE_FAULT        The function failed.
+ * @return LE_TIMEOUT      No response was received.
+ * @return LE_OK           The function succeeded.
+ */
+//--------------------------------------------------------------------------------------------------
+static le_result_t GetNetworkReg
+(
+    bool        mode,      ///< true -> mode, false -> state
+    int32_t*    valuePtr   ///< value that will be return
+)
+{
+    le_atClient_CmdRef_t cmdRef   = NULL;
+    le_result_t          res      = LE_FAULT;
+    char*                tokenPtr = NULL;
+    char*                savePtr  = NULL;
+    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    if (!valuePtr)
+    {
+        LE_WARN("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CREG?",
+                                        "+CREG:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        tokenPtr = strtok_r(intermediateResponse+strlen("+CREG: "), ",", &savePtr);
+        if (mode)
+        {
+            switch(atoi(tokenPtr))
+            {
+                case 0:
+                    *valuePtr = PA_MRC_DISABLE_REG_NOTIFICATION;
+                    break;
+                case 1:
+                    *valuePtr = PA_MRC_ENABLE_REG_NOTIFICATION;
+                    break;
+                case 2:
+                    *valuePtr = PA_MRC_ENABLE_REG_LOC_NOTIFICATION;
+                    break;
+                default:
+                    LE_ERROR("Failed to get the response");
+                    break;
+            }
+        }
+        else
+        {
+            tokenPtr = strtok_r(NULL, ",", &savePtr);
+            switch(atoi(tokenPtr))
+            {
+                case 0:
+                    *valuePtr = LE_MRC_REG_NONE;
+                    break;
+                case 1:
+                    *valuePtr = LE_MRC_REG_HOME;
+                    break;
+                case 2:
+                    *valuePtr = LE_MRC_REG_SEARCHING;
+                    break;
+                case 3:
+                    *valuePtr = LE_MRC_REG_DENIED;
+                    break;
+                case 4:
+                    *valuePtr = LE_MRC_REG_UNKNOWN;
+                    break;
+                case 5:
+                    *valuePtr = LE_MRC_REG_ROAMING;
+                    break;
+                default:
+                    *valuePtr = LE_MRC_REG_UNKNOWN;
+                    break;
+            }
+        }
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
+}
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -144,22 +334,17 @@ le_result_t pa_mrc_Init
     void
 )
 {
-//     if (AllPorts[ATPORT_COMMAND]==NULL) {
-//         LE_WARN("radio control Module is not initialize in this session");
-//         return LE_FAULT;
-//     }
+    UnsolicitedEventId = le_event_CreateId("MrcUnsolEventId",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    NetworkRegEventId = le_event_CreateIdWithRefCounting("NetworkRegEventId");
 
-    EventUnsolicitedId    = le_event_CreateId("RCEventIdUnsol",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-    EventNewRcStatusId    = le_event_CreateIdWithRefCounting("EventNewRcStatus");
+    le_event_AddHandler("MrcUnsolHandler",UnsolicitedEventId  ,CREGUnsolHandler);
 
-    le_event_AddHandler("RCUnsolHandler",EventUnsolicitedId  ,CREGUnsolHandler);
-
-    RegStatePoolRef = le_mem_CreatePool("regStatePool",sizeof(le_mrc_NetRegState_t));
+    RegStatePoolRef = le_mem_CreatePool("RegStatePool",sizeof(le_mrc_NetRegState_t));
     RegStatePoolRef = le_mem_ExpandPool(RegStatePoolRef,DEFAULT_REGSTATE_POOL_SIZE);
 
     SubscribeUnsolCREG(PA_MRC_ENABLE_REG_LOC_NOTIFICATION);
 
-    pa_mrc_GetNetworkRegConfig(&ThisMode);
+    pa_mrc_GetNetworkRegConfig(&RegNotification);
 
     return LE_OK;
 }
@@ -179,28 +364,35 @@ le_result_t pa_mrc_SetRadioPower
     le_onoff_t    power   ///< [IN] The power state.
 )
 {
-    char*       commandPtr     = NULL;
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "\0";
-
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    le_result_t          res    = LE_FAULT;
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
 
     if (power == LE_ON)
     {
-        commandPtr = "AT+CFUN=1";
+        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CFUN=1");
     }
     else if (power == LE_OFF)
     {
-        commandPtr = "AT+CFUN=0";
+        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CFUN=4");
     }
     else
     {
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
+    le_atClient_SetCommandAndSend(&cmdRef,
+                                  command,
+                                  "",
+                                  DEFAULT_AT_RESPONSE,
+                                  DEFAULT_AT_CMD_TIMEOUT);
 
+    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+    }
     le_atClient_Delete(cmdRef);
     return res;
 }
@@ -219,45 +411,42 @@ le_result_t pa_mrc_GetRadioPower
      le_onoff_t*    powerPtr   ///< [OUT] The power state.
 )
 {
-    const char* commandPtr      = "AT+CFUN?";
-    const char* interRespPtr    = "+CFUN:";
-    const char* respPtr         = "\0";
-
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
-    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char* savePtr  = NULL;
-    char* tokenPtr = NULL;
+    le_result_t          res    = LE_FAULT;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
-
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CFUN?",
+                                        "+CFUN:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
     if (res != LE_OK)
     {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
     }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_DEBUG("Failed to get the response");
+    }
     else
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
-        if (res != LE_OK)
-        {
-            LE_DEBUG("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        tokenPtr = strtok_r(intermediateResponse, "+CFUN: ", &savePtr);
-
-        if(atoi(tokenPtr) != 0)
+        if(atoi(&intermediateResponse[strlen("+CFUN: ")]) == 1)
         {
             *powerPtr = LE_ON;
         }
@@ -265,10 +454,9 @@ le_result_t pa_mrc_GetRadioPower
         {
             *powerPtr = LE_OFF;
         }
-
-        le_atClient_Delete(cmdRef);
-        return LE_OK;
     }
+    le_atClient_Delete(cmdRef);
+    return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -285,7 +473,6 @@ le_event_HandlerRef_t pa_mrc_SetRatChangeHandler
     pa_mrc_RatChangeHdlrFunc_t handlerFuncPtr ///< [IN] The handler function.
 )
 {
-    // TODO: implement this function
     return NULL;
 }
 
@@ -302,7 +489,6 @@ void pa_mrc_RemoveRatChangeHandler
     le_event_HandlerRef_t handlerRef
 )
 {
-    // TODO: implement this function
     return;
 }
 
@@ -323,13 +509,13 @@ le_event_HandlerRef_t pa_mrc_AddNetworkRegHandler
 {
     LE_DEBUG("Set new Radio Control handler");
 
-    if (regStateHandler==NULL)
+    if (regStateHandler == NULL)
     {
         LE_FATAL("new Radio Control handler is NULL");
     }
 
     return (le_event_AddHandler("NewRegStateHandler",
-                                EventNewRcStatusId,
+                                NetworkRegEventId,
                                 (le_event_HandlerFunc_t) regStateHandler));
 }
 
@@ -364,122 +550,22 @@ le_result_t pa_mrc_ConfigureNetworkReg
     pa_mrc_NetworkRegSetting_t  setting ///< [IN] The selected Network registration setting.
 )
 {
-    char command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    const char* interRespPtr   = "\0";
-    const char* respPtr        = "\0";
-
+    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
+    le_result_t          res    = LE_FAULT;
 
     snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CREG=%d", setting);
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,command,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
-
-    le_atClient_Delete(cmdRef);
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        command,
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res == LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+    }
     return res;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This function gets information of the Network registration.
- *
- * @return LE_FAULT        The function failed.
- * @return LE_TIMEOUT      No response was received.
- * @return LE_OK           The function succeeded.
- */
-//--------------------------------------------------------------------------------------------------
-static le_result_t GetNetworkReg
-(
-    bool        first,      ///< true -> mode, false -> state
-    int32_t*    valuePtr    ///< value that will be return
-)
-{
-    const char* commandPtr     = "AT+CREG?";
-    const char* interRespPtr   = "+CREG:";
-    const char* respPtr        = "\0";
-
-    le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
-    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char* tokenPtr = NULL;
-    char* rest     = NULL;
-    char* savePtr  = NULL;
-
-    if (!valuePtr)
-    {
-        LE_WARN("One parameter is NULL");
-        return LE_BAD_PARAMETER;
-    }
-
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
-
-    if (res != LE_OK)
-    {
-        le_atClient_Delete(cmdRef);
-        return res;
-    }
-    else
-    {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
-        if (res != LE_OK)
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        rest = intermediateResponse+strlen("+CREG: ");
-        int32_t val;
-
-        tokenPtr = strtok_r(rest, ",", &savePtr);
-
-        if (first)
-        {
-            val=atoi(tokenPtr);
-        }
-        else
-        {
-            tokenPtr = strtok_r(NULL, ",", &savePtr);
-            val=atoi(tokenPtr);
-        }
-
-        switch(val)
-        {
-            case 0:
-                *valuePtr = LE_MRC_REG_NONE;
-                break;
-            case 1:
-                *valuePtr = LE_MRC_REG_HOME;
-                break;
-            case 2:
-                *valuePtr = LE_MRC_REG_SEARCHING;
-                break;
-            case 3:
-                *valuePtr = LE_MRC_REG_DENIED;
-                break;
-            case 4:
-                *valuePtr = LE_MRC_REG_UNKNOWN;
-                break;
-            case 5:
-                *valuePtr = LE_MRC_REG_ROAMING;
-                break;
-            default:
-                *valuePtr = LE_MRC_REG_UNKNOWN;
-                break;
-        }
-
-        le_atClient_Delete(cmdRef);
-        return res;
-    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -494,10 +580,9 @@ static le_result_t GetNetworkReg
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetNetworkRegConfig
 (
-    pa_mrc_NetworkRegSetting_t*  settingPtr   ///< [OUT] The selected Network registration setting.
+    pa_mrc_NetworkRegSetting_t* settingPtr   ///< [OUT] The selected Network registration setting.
 )
 {
-    le_result_t result = LE_FAULT;
     int32_t val;
 
     if (!settingPtr)
@@ -506,15 +591,11 @@ le_result_t pa_mrc_GetNetworkRegConfig
         return LE_BAD_PARAMETER;
     }
 
-    result = GetNetworkReg(true,&val);
+    GetNetworkReg(true,&val);
+   *settingPtr = (pa_mrc_NetworkRegSetting_t)val;
+    RegNotification = val;
 
-    if ( result == LE_OK )
-    {
-        *settingPtr = (pa_mrc_NetworkRegSetting_t)val;
-        ThisMode = val;
-    }
-
-    return result;
+    return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -532,7 +613,6 @@ le_result_t pa_mrc_GetNetworkRegState
     le_mrc_NetRegState_t* statePtr  ///< [OUT] The network registration state.
 )
 {
-    le_result_t result = LE_FAULT;
     int32_t val;
 
     if (!statePtr)
@@ -541,14 +621,10 @@ le_result_t pa_mrc_GetNetworkRegState
         return LE_BAD_PARAMETER;
     }
 
-    result = GetNetworkReg(false,&val);
+    GetNetworkReg(false,&val);
+   *statePtr = (le_mrc_NetRegState_t)val;
 
-    if ( result == LE_OK )
-    {
-        *statePtr = (le_mrc_NetRegState_t)val;
-    }
-
-    return result;
+    return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -567,17 +643,14 @@ le_result_t pa_mrc_GetSignalStrength
     int32_t*          rssiPtr    ///< [OUT] The received signal strength (in dBm).
 )
 {
-    const char* commandPtr     = "AT+CSQ";
-    const char* interRespPtr   = "+CSQ:";
-    const char* respPtr        = "\0";
-
-    le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t res;
+    le_atClient_CmdRef_t cmdRef   = NULL;
+    le_result_t          res      = LE_FAULT;
+    char*                tokenPtr = NULL;
+    char*                rest     = NULL;
+    char*                savePtr  = NULL;
+    int32_t              val      = 0;
     char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
     char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char* tokenPtr = NULL;
-    char* rest     = NULL;
-    char* savePtr  = NULL;
 
     if (!rssiPtr)
     {
@@ -585,36 +658,39 @@ le_result_t pa_mrc_GetSignalStrength
         return LE_BAD_PARAMETER;
     }
 
-    res = le_atClient_SetCommandAndSend(&cmdRef,commandPtr,interRespPtr,respPtr,DEFAULT_AT_CMD_TIMEOUT);
-
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CSQ",
+                                        "+CSQ:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
     if (res != LE_OK)
     {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                        finalResponse,
+                                        LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
     }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
     else
     {
-        res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,intermediateResponse,50);
-        if (res != LE_OK)
-        {
-            LE_ERROR("Failed to get the response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        rest = intermediateResponse+strlen("+CSQ: ");
-        int32_t val;
-
+        rest     = intermediateResponse+strlen("+CSQ: ");
         tokenPtr = strtok_r(rest, ",", &savePtr);
-        val=atoi(tokenPtr);
+        val      = atoi(tokenPtr);
 
         if (val == 99)
         {
@@ -626,10 +702,10 @@ le_result_t pa_mrc_GetSignalStrength
             *rssiPtr = (-113+(2*val));
             res = LE_OK;
         }
-
-        le_atClient_Delete(cmdRef);
-        return res;
     }
+    le_atClient_Delete(cmdRef);
+    return res;
+
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -640,21 +716,100 @@ le_result_t pa_mrc_GetSignalStrength
  *      - LE_OK on success
  *      - LE_OVERFLOW if the current network name can't fit in nameStr
  *      - LE_FAULT on any other failure
- * @TODO
- *      implementation
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetCurrentNetwork
 (
-    char       *nameStr,               ///< [OUT] the home network Name
+    char*       nameStr,               ///< [OUT] the home network Name
     size_t      nameStrSize,           ///< [IN]  the nameStr size
-    char       *mccStr,                ///< [OUT] the mobile country code
+    char*       mccStr,                ///< [OUT] the mobile country code
     size_t      mccStrNumElements,     ///< [IN]  the mccStr size
-    char       *mncStr,                ///< [OUT] the mobile network code
+    char*       mncStr,                ///< [OUT] the mobile network code
     size_t      mncStrNumElements      ///< [IN]  the mncStr size
 )
 {
-    return LE_FAULT;
+    le_atClient_CmdRef_t cmdRef   = NULL;
+    le_result_t          res      = LE_FAULT;
+    char*                tokenPtr = NULL;
+    char*                savePtr  = NULL;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+     if (nameStr != NULL)
+    {
+        res = SetOperatorTextMode(1);
+    }
+    else if ((mccStr != NULL) && (mncStr != NULL))
+    {
+        res = SetOperatorTextMode(0);
+    }
+    else
+    {
+        LE_DEBUG("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to set the command");
+        return res;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+COPS?",
+                                        "+COPS:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        if (nameStr != NULL)
+        {
+            // Cut the string for keep just the phone number
+            tokenPtr = strtok_r(intermediateResponse, "\"", &savePtr);
+            tokenPtr = strtok_r(NULL, "\"", &savePtr);
+
+            strncpy(nameStr, tokenPtr, nameStrSize);
+        }
+        else
+        {
+            // Cut the string for keep just the phone number
+            tokenPtr = strtok_r(intermediateResponse, ",", &savePtr);
+            tokenPtr = strtok_r(NULL, ",", &savePtr);
+            tokenPtr = strtok_r(NULL, ",", &savePtr);
+
+            strncpy(mccStr, tokenPtr, mccStrNumElements);
+            strncpy(mncStr, tokenPtr + 3, mncStrNumElements);
+
+            SetOperatorTextMode(1);
+        }
+    }
+
+    le_atClient_Delete(cmdRef);
+    return res;
+
 }
 
 
@@ -662,8 +817,6 @@ le_result_t pa_mrc_GetCurrentNetwork
 /**
  * This function must be called to delete the list of Scan Information
  *
- *
- * @TODO     implementation
  */
 //--------------------------------------------------------------------------------------------------
 void pa_mrc_DeleteScanInformation
@@ -683,17 +836,16 @@ void pa_mrc_DeleteScanInformation
  * @return LE_TIMEOUT       No response was received.
  * @return LE_COMM_ERROR    Radio link failure occurred.
  * @return LE_OK            The function succeeded.
- *
- * @TODO     implementation
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_PerformNetworkScan
 (
     le_mrc_RatBitMask_t ratMask,               ///< [IN] The network mask
     pa_mrc_ScanType_t   scanType,              ///< [IN] the scan type
-    le_dls_List_t      *scanInformationListPtr ///< [OUT] list of pa_mrc_ScanInformation_t
+    le_dls_List_t*      scanInformationListPtr ///< [OUT] list of pa_mrc_ScanInformation_t
 )
 {
+    LE_WARN("Network scan is not supported");
     return LE_FAULT;
 }
 
@@ -705,20 +857,17 @@ le_result_t pa_mrc_PerformNetworkScan
  *      - LE_OK on success
  *      - LE_OVERFLOW if the operator name would not fit in buffer
  *      - LE_FAULT for all other errors
- *
- * @TODO     implementation
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetScanInformationName
 (
-    pa_mrc_ScanInformation_t *scanInformationPtr,   ///< [IN] The scan information
-    char *namePtr, ///< [OUT] Name of operator
-    size_t nameSize ///< [IN] The size in bytes of the namePtr buffer
+    pa_mrc_ScanInformation_t* scanInformationPtr,   ///< [IN] The scan information
+    char*                     namePtr,              ///< [OUT] Name of operator
+    size_t                    nameSize              ///< [IN] The size in bytes of the namePtr buffer
 )
 {
     return LE_FAULT;
 }
-
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -752,17 +901,12 @@ le_result_t pa_mrc_CountPreferredOperators
 le_result_t pa_mrc_GetPreferredOperators
 (
     pa_mrc_PreferredNetworkOperator_t*   preferredOperatorPtr,
-                       ///< [IN/OUT] The preferred operators pointer.
-    bool  plmnStatic,  ///< [IN] Include Static preferred Operators.
-    bool  plmnUser,    ///< [IN] Include Users preferred Operators.
-    int32_t* nbItemPtr ///< [IN/OUT] number of Preferred operator to find (in) and written (out).
+                          ///< [IN/OUT] The preferred operators pointer.
+    bool     plmnStatic,  ///< [IN] Include Static preferred Operators.
+    bool     plmnUser,    ///< [IN] Include Users preferred Operators.
+    int32_t* nbItemPtr    ///< [IN/OUT] number of Preferred operator to find (in) and written (out).
 )
 {
-    if (preferredOperatorPtr == NULL)
-    {
-        LE_FATAL("preferredOperatorListPtr is NULL !");
-    }
-
     return LE_NOT_FOUND;
 }
 
@@ -774,13 +918,11 @@ le_result_t pa_mrc_GetPreferredOperators
  * @return
  *      - LE_OK             on success
  *      - LE_FAULT          for all other errors
- *
- * @TODO     implementation
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_SavePreferredOperators
 (
-    le_dls_List_t      *preferredOperatorsListPtr ///< [IN] List of preferred network operator
+    le_dls_List_t* preferredOperatorsListPtr ///< [IN] List of preferred network operator
 )
 {
     return LE_FAULT;
@@ -792,8 +934,6 @@ le_result_t pa_mrc_SavePreferredOperators
  *
  * @return LE_FAULT  The function failed to register.
  * @return LE_OK            The function succeeded to register,
- *
- * @TODO     implementation
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_RegisterNetwork
@@ -819,7 +959,34 @@ le_result_t pa_mrc_SetAutomaticNetworkRegistration
     void
 )
 {
-    return LE_FAULT;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_FAULT;
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CREG=1",
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command !");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
+    {
+        LE_ERROR("Function failed !");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
+    }
+
+    LE_DEBUG("Set automatic network registration.");
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -837,7 +1004,61 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
     size_t  mncPtrSize    ///< [IN] mncPtr buffer size
 )
 {
-    return LE_NOT_POSSIBLE;
+    char*                tokenPtr   = NULL;
+    char*                restPtr    = NULL;
+    char*                savePtr    = NULL;
+    le_atClient_CmdRef_t cmdRef     = NULL;
+    le_result_t          res        = LE_FAULT;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+CREG?",
+                                        "+CREG:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command !");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
+    {
+        LE_ERROR("Function failed !");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response !");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    restPtr  = intermediateResponse+strlen("+CREG: ");
+    tokenPtr = strtok_r(restPtr, ",", &savePtr);
+
+    if (atoi(tokenPtr) == 1)
+    {
+        *isManualPtr = false;
+    }
+    else
+    {
+        *isManualPtr = true;
+    }
+
+    res = pa_mrc_GetCurrentNetwork(NULL, 0, mccPtr, mccPtrSize, mncPtr, mncPtrSize);
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -853,9 +1074,61 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
     le_mrc_Rat_t*   ratPtr    ///< [OUT] The Radio Access Technology.
 )
 {
-    // TODO: implement this function
+    le_atClient_CmdRef_t cmdRef  = NULL;
+    le_result_t          res     = LE_FAULT;
+    char*                bandPtr = NULL;
+    int                  bitMask = 0;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
 
-    return LE_FAULT;
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+KBND?",
+                                        "+KBND:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        bandPtr = intermediateResponse+strlen("+KBND: ");
+        bitMask = atoi(bandPtr);
+
+        if ((bitMask >= 1) && (bitMask <= 8))
+        {
+            *ratPtr = LE_MRC_RAT_GSM;
+        }
+        else if ((bitMask >= 10) && (bitMask <= 200))
+        {
+            *ratPtr = LE_MRC_RAT_UMTS;
+        }
+        else
+        {
+            *ratPtr = LE_MRC_RAT_UNKNOWN;
+        }
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -872,8 +1145,57 @@ le_result_t pa_mrc_SetRatPreferences
     le_mrc_RatBitMask_t ratMask ///< [IN] A bit mask to set the Radio Access Technology preferences.
 )
 {
-    // TODO: implement this function
-    return LE_FAULT;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_FAULT;
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    if (ratMask == LE_MRC_BITMASK_RAT_GSM)
+    {
+        res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            "AT+KSRAT=1",
+                                            "",
+                                            DEFAULT_AT_RESPONSE,
+                                            DEFAULT_AT_CMD_TIMEOUT);
+    }
+    else if (ratMask == LE_MRC_BITMASK_RAT_UMTS)
+    {
+        res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            "AT+KSRAT=2",
+                                            "",
+                                            DEFAULT_AT_RESPONSE,
+                                            DEFAULT_AT_CMD_TIMEOUT);
+    }
+    else if (ratMask == LE_MRC_BITMASK_RAT_ALL)
+    {
+        res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            "AT+KSRAT=4",
+                                            "",
+                                            DEFAULT_AT_RESPONSE,
+                                            DEFAULT_AT_CMD_TIMEOUT);
+    }
+    else
+    {
+        LE_ERROR("Impossible to set the Radio Access technology");
+        return LE_FAULT;
+    }
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -890,8 +1212,32 @@ le_result_t pa_mrc_SetAutomaticRatPreference
     void
 )
 {
-    // TODO: implement this function
-    return LE_FAULT;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_FAULT;
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+KSRAT=4",
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -906,11 +1252,69 @@ le_result_t pa_mrc_SetAutomaticRatPreference
 le_result_t pa_mrc_GetRatPreferences
 (
     le_mrc_RatBitMask_t* ratMaskPtr ///< [OUT] A bit mask to get the Radio Access Technology
-                                        ///<  preferences.
+                                    ///<  preferences.
 )
 {
-    // TODO: implement this function
-    return LE_FAULT;
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_FAULT;
+    char*                ratPtr = NULL;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+KSRAT?",
+                                        "+KSRAT:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_DEBUG("Failed to get the response");
+    }
+    else
+    {
+        ratPtr = intermediateResponse+strlen("+KSRAT: ");
+
+        switch (atoi(ratPtr))
+        {
+        case 1:
+            *ratMaskPtr = LE_MRC_BITMASK_RAT_GSM;
+            break;
+        case 2:
+            *ratMaskPtr = LE_MRC_BITMASK_RAT_UMTS;
+            break;
+        case 3:
+            *ratMaskPtr = LE_MRC_BITMASK_RAT_GSM;
+            break;
+        case 4:
+            *ratMaskPtr = LE_MRC_BITMASK_RAT_ALL;
+            break;
+        default:
+            LE_ERROR("An error occurred");
+            res = LE_FAULT;
+            break;
+        }
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 
@@ -928,7 +1332,6 @@ le_result_t pa_mrc_SetBandPreferences
     le_mrc_BandBitMask_t bands ///< [IN] A bit mask to set the Band preferences.
 )
 {
-    // TODO: implement this function
     return LE_FAULT;
 }
 
@@ -947,7 +1350,6 @@ le_result_t pa_mrc_GetBandPreferences
     le_mrc_BandBitMask_t* bandsPtr ///< [OUT] A bit mask to get the Band preferences.
 )
 {
-    // TODO: implement this function
     return LE_FAULT;
 }
 
@@ -965,8 +1367,6 @@ le_result_t pa_mrc_SetLteBandPreferences
     le_mrc_LteBandBitMask_t bands ///< [IN] A bit mask to set the LTE Band preferences.
 )
 {
-    // TODO: implement this function
-
     return LE_FAULT;
 }
 
@@ -984,8 +1384,6 @@ le_result_t pa_mrc_GetLteBandPreferences
     le_mrc_LteBandBitMask_t* bandsPtr ///< [OUT] A bit mask to get the LTE Band preferences.
 )
 {
-    // TODO: implement this function
-
     return LE_FAULT;
 }
 
@@ -1003,8 +1401,6 @@ le_result_t pa_mrc_SetTdScdmaBandPreferences
     le_mrc_TdScdmaBandBitMask_t bands ///< [IN] A bit mask to set the TD-SCDMA Band Preferences.
 )
 {
-    // TODO: implement this function
-
     return LE_FAULT;
 }
 
@@ -1023,8 +1419,6 @@ le_result_t pa_mrc_GetTdScdmaBandPreferences
                                           ///<  preferences.
 )
 {
-    // TODO: implement this function
-
     return LE_FAULT;
 }
 
@@ -1041,10 +1435,9 @@ le_result_t pa_mrc_GetTdScdmaBandPreferences
 //--------------------------------------------------------------------------------------------------
 int32_t pa_mrc_GetNeighborCellsInfo
 (
-    le_dls_List_t*   cellInfoListPtr    ///< [OUT] The Neighboring Cells information.
+    le_dls_List_t* cellInfoListPtr  ///< [OUT] The Neighboring Cells information.
 )
 {
-    // TODO: implement this function
     return LE_FAULT;
 }
 
@@ -1056,11 +1449,10 @@ int32_t pa_mrc_GetNeighborCellsInfo
 //--------------------------------------------------------------------------------------------------
 void pa_mrc_DeleteNeighborCellsInfo
 (
-    le_dls_List_t *cellInfoListPtr ///< [IN] list of pa_mrc_CellInfo_t
+    le_dls_List_t* cellInfoListPtr   ///< [IN] list of pa_mrc_CellInfo_t
 )
 {
-    // TODO: implement this function
-    return ;
+    return;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1077,8 +1469,14 @@ le_result_t pa_mrc_MeasureSignalMetrics
     pa_mrc_SignalMetrics_t* metricsPtr    ///< [OUT] The signal metrics.
 )
 {
-    // TODO: implement this function
-    return LE_FAULT;
+    le_mrc_Rat_t  rat;
+    int32_t       signal;
+
+    metricsPtr->rat = pa_mrc_GetRadioAccessTechInUse(&rat);
+    metricsPtr->ss  = pa_mrc_GetSignalStrength(&signal);
+    metricsPtr->er  = 0xFFFFFFFF;
+
+    return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1097,7 +1495,6 @@ le_event_HandlerRef_t pa_mrc_AddSignalStrengthIndHandler
     void*                              contextPtr    ///< [IN] The context to be given to the handler.
 )
 {
-    // TODO: implement this function
     return NULL;
 }
 
@@ -1113,8 +1510,7 @@ void pa_mrc_RemoveSignalStrengthIndHandler
     le_event_HandlerRef_t handlerRef
 )
 {
-    // TODO: implement this function
-    return ;
+    return;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1134,7 +1530,6 @@ le_result_t pa_mrc_SetSignalStrengthIndThresholds
     int32_t      upperRangeThreshold  ///< [IN] upper-range strength threshold in dBm
 )
 {
-    // TODO: implement this function
     return LE_FAULT;
 }
 
@@ -1152,9 +1547,9 @@ le_result_t pa_mrc_GetServingCellId
     uint32_t* cellIdPtr ///< [OUT] main Cell Identifier.
 )
 {
-    // TODO: implement this function
     return LE_FAULT;
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -1170,9 +1565,9 @@ le_result_t pa_mrc_GetServingCellLteTracAreaCode
     uint16_t* tacPtr ///< [OUT] Tracking Area Code of the serving cell.
 )
 {
-    // TODO: implement this function
     return LE_FAULT;
 }
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -1188,7 +1583,6 @@ le_result_t pa_mrc_GetServingCellLocAreaCode
     uint32_t* lacPtr ///< [OUT] Location Area Code of the serving cell.
 )
 {
-    // TODO: implement this function
     return LE_FAULT;
 }
 
@@ -1197,8 +1591,8 @@ le_result_t pa_mrc_GetServingCellLocAreaCode
  * Get the Band capabilities
  *
  * @return
- * - LE_OK              on success
- * - LE_FAULT           on failure
+ *  - LE_FAULT  Function failed.
+ *  - LE_OK     Function succeeded.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetBandCapabilities
@@ -1206,8 +1600,101 @@ le_result_t pa_mrc_GetBandCapabilities
     le_mrc_BandBitMask_t* bandsPtr ///< [OUT] A bit mask to get the Band capabilities.
 )
 {
-    // TODO: implement this function
-    return LE_FAULT;
+    le_atClient_CmdRef_t cmdRef  = NULL;
+    le_result_t          res     = LE_FAULT;
+    char*                bandPtr = NULL;
+    le_mrc_BandBitMask_t bands   = 0;
+    int                  bitMask = 0;
+    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        "AT+KBND?",
+                                        "+KBND:",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        bandPtr = intermediateResponse+strlen("+KBND: ");
+        bitMask = atoi(bandPtr);
+
+        if (bitMask & 0x00)
+        {
+            LE_ERROR("Band capabilities not available !");
+            res = LE_FAULT;
+        }
+        if (bitMask == 1)
+        {
+            bands |= LE_MRC_BITMASK_BAND_GSM_850;
+        }
+        if (bitMask == 2)
+        {
+            bands |= LE_MRC_BITMASK_BAND_EGSM_900;
+        }
+        if (bitMask == 4)
+        {
+            bands |= LE_MRC_BITMASK_BAND_GSM_DCS_1800;
+        }
+        if (bitMask == 8)
+        {
+            bands |= LE_MRC_BITMASK_BAND_GSM_PCS_1900;
+        }
+        if (bitMask == 10)
+        {
+            bands |= LE_MRC_BITMASK_BAND_WCDMA_EU_J_CH_IMT_2100;
+        }
+        if (bitMask == 20)
+        {
+            bands |= LE_MRC_BITMASK_BAND_WCDMA_US_PCS_1900;
+        }
+        if (bitMask == 40)
+        {
+            bands |= LE_MRC_BITMASK_BAND_WCDMA_US_850;
+        }
+        if (bitMask == 80)
+        {
+            bands |= LE_MRC_BITMASK_BAND_WCDMA_J_800;
+        }
+        if (bitMask == 100)
+        {
+            bands |= LE_MRC_BITMASK_BAND_WCDMA_EU_J_900;
+        }
+        if (bitMask == 200)
+        {
+            bands |= LE_MRC_BITMASK_BAND_WCDMA_J_800;
+        }
+
+        if (bandsPtr)
+        {
+            *bandsPtr = bands;
+        }
+    }
+
+    le_atClient_Delete(cmdRef);
+    return res;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1224,7 +1711,7 @@ le_result_t pa_mrc_GetLteBandCapabilities
     le_mrc_LteBandBitMask_t* bandsPtr ///< [OUT] Bit mask to get the LTE Band capabilities.
 )
 {
-    // TODO: implement this function
+    LE_WARN("LTE not available");
     return LE_FAULT;
 }
 
@@ -1242,6 +1729,6 @@ le_result_t pa_mrc_GetTdScdmaBandCapabilities
     le_mrc_TdScdmaBandBitMask_t* bandsPtr ///< [OUT] Bit mask to get the TD-SCDMA Band capabilities.
 )
 {
-    // TODO: implement this function
+    LE_WARN("CDMA not available");
     return LE_FAULT;
 }
