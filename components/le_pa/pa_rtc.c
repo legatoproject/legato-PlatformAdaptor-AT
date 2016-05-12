@@ -1,5 +1,5 @@
 /**
- * @file pa_rtc_qmi.c
+ * @file pa_rtc.c
  *
  * AT implementation of RTC API - stub.
  *

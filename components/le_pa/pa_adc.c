@@ -1,5 +1,5 @@
 /**
- * @file pa_adc_qmi.c
+ * @file pa_adc.c
  *
  * AT implementation of ADC API - stub.
  *
