@@ -642,6 +642,21 @@ le_result_t pa_mdc_WriteProfile
     return res;
 }
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get the connection failure reason
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+void pa_mdc_GetConnectionFailureReason
+(
+    uint32_t profileIndex,              ///< [IN] The profile to use
+    pa_mdc_ConnectionFailureCode_t* failureCodesPtr  ///< [OUT] The specific Failure Reason codes
+)
+{
+    memset(failureCodesPtr, 0, sizeof(pa_mdc_ConnectionFailureCode_t));
+    failureCodesPtr->callEndFailure = LE_MDC_DISC_UNDEFINED;
+}
 
 //--------------------------------------------------------------------------------------------------
 /**
