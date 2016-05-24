@@ -600,6 +600,22 @@ le_result_t pa_mrc_GetNetworkRegConfig
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Get the platform specific network registration error code.
+ *
+ * @return the platform specific registration error code
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+int32_t pa_mrc_GetPlatformSpecificRegistrationErrorCode
+(
+    void
+)
+{
+    return 0;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * This function gets the Network registration state.
  *
  * @return LE_BAD_PARAMETER Bad parameter passed to the function
