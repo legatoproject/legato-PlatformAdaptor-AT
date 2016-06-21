@@ -11,8 +11,7 @@
 
 #include "pa_mdc.h"
 #include "pa_utils_local.h"
-
-#include "le_atClient.h"
+#include "pa_at_local.h"
 
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -45,7 +44,6 @@ static le_event_Id_t CallEventId;
  * registered at a time, so its reference is stored, in case it needs to be removed later.
  */
 //--------------------------------------------------------------------------------------------------
-static le_event_Id_t         UnsolicitedEventId;
 static le_event_Id_t         SessionStateEventId;
 static le_mem_PoolRef_t      SessionStatePool;
 static le_event_HandlerRef_t NewSessionStateHandlerRef = NULL;
@@ -59,6 +57,14 @@ static le_event_HandlerRef_t NewSessionStateHandlerRef = NULL;
  */
 //--------------------------------------------------------------------------------------------------
 static uint32_t CurrentDataSessionIndex=INVALID_PROFILE_INDEX;
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Unsolicited references
+ */
+//--------------------------------------------------------------------------------------------------
+le_atClient_UnsolicitedResponseHandlerRef_t UnsolCgevRef = NULL;
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -119,13 +125,14 @@ static le_result_t AttachGPRS
     bool toAttach   ///< [IN] boolean value
 )
 {
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGATT=%d",toAttach);
+    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CGATT=%d",toAttach);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -149,57 +156,18 @@ static le_result_t ActivateContext
     bool     toActivate       ///< [IN] activation boolean
 )
 {
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGACT=%d,%d",toActivate,profileIndex);
+    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CGACT=%d,%d",toActivate,profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
-
-    le_atClient_Delete(cmdRef);
-    return res;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Enable or disable GPRS Event reporting.
- *
- * @return LE_OK            GPRS event reporting is enable/disable
- * @return LE_FAULT         Modem could not enable/disable the GPRS Event reporting
- */
-//--------------------------------------------------------------------------------------------------
-static le_result_t SetIndicationHandler
-(
-    uint32_t  mode  ///< Unsolicited result mode
-)
-{
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t          res    = LE_FAULT;
-
-    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGEREP=%d",mode);
-
-    res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        command,
-                                        "",
-                                        DEFAULT_AT_RESPONSE,
-                                        DEFAULT_AT_CMD_TIMEOUT);
-    if (res == LE_OK)
-    {
-        if (mode)
-        {
-            le_atClient_AddUnsolicitedResponseHandler(UnsolicitedEventId,"+CGEV:",false);
-        }
-        else
-        {
-            le_atClient_RemoveUnsolicitedResponseHandler(UnsolicitedEventId,"+CGEV:");
-        }
-    }
 
     le_atClient_Delete(cmdRef);
     return res;
@@ -213,10 +181,10 @@ static le_result_t SetIndicationHandler
 //--------------------------------------------------------------------------------------------------
 static void CGEVUnsolHandler
 (
-    void* reportPtr
+    const char* unsolPtr,
+    void* contextPtr
 )
 {
-    char*                      unsolPtr        = reportPtr;
     uint32_t                   numParam        = 0;
     pa_mdc_SessionStateData_t* sessionStatePtr = NULL;
 
@@ -225,7 +193,7 @@ static void CGEVUnsolHandler
          ( FIND_STRING("+CGEV: ME DEACT", unsolPtr) )
        )
     {
-        numParam = pa_utils_CountAndIsolateLineParameters(unsolPtr);
+        numParam = pa_utils_CountAndIsolateLineParameters((char*)unsolPtr);
 
         if (numParam == 4)
         {
@@ -250,6 +218,54 @@ static void CGEVUnsolHandler
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Enable or disable GPRS Event reporting.
+ *
+ * @return LE_OK            GPRS event reporting is enable/disable
+ * @return LE_FAULT         Modem could not enable/disable the GPRS Event reporting
+ */
+//--------------------------------------------------------------------------------------------------
+static le_result_t SetIndicationHandler
+(
+    uint32_t  mode  ///< Unsolicited result mode
+)
+{
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_FAULT;
+
+    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CGEREP=%d",mode);
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
+                                        command,
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res == LE_OK)
+    {
+        if (mode)
+        {
+            UnsolCgevRef = le_atClient_AddUnsolicitedResponseHandler(  "+CGEV:",
+                                                                        pa_at_GetAtDeviceRef(),
+                                                                        CGEVUnsolHandler,
+                                                                        NULL,
+                                                                        1);
+        }
+        else if (UnsolCgevRef)
+        {
+            le_atClient_RemoveUnsolicitedResponseHandler(UnsolCgevRef);
+            UnsolCgevRef = NULL;
+        }
+    }
+
+    le_atClient_Delete(cmdRef);
+    return res;
+}
+
+
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Start the PDP Modem connection.
  *
  * @return LE_OK            Activate the profile in the modem
@@ -263,9 +279,8 @@ static le_result_t StartPDPConnection
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    le_atClient_Ports_t  port   = LE_ATCLIENT_PORT_PPP;
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN] ;
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES] ;
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!profileIndex)
     {
@@ -273,7 +288,7 @@ static le_result_t StartPDPConnection
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"ATD*99***%d#",profileIndex);
+    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"ATD*99***%d#",profileIndex);
 
     cmdRef = le_atClient_Create();
     LE_DEBUG("New command ref (%p) created",cmdRef);
@@ -295,7 +310,7 @@ static le_result_t StartPDPConnection
         LE_ERROR("Failed to set final response !");
         return res;
     }
-    res = le_atClient_SetPort(cmdRef, port);
+    res = le_atClient_SetDevice(cmdRef, pa_at_GetPppDeviceRef());
     if (res != LE_OK)
     {
         le_atClient_Delete(cmdRef);
@@ -313,7 +328,7 @@ static le_result_t StartPDPConnection
     {
         res = le_atClient_GetFinalResponse(cmdRef,
                                         finalResponse,
-                                        LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                        LE_ATCLIENT_CMD_RSP_MAX_BYTES);
 
         if ((res != LE_OK) || (strcmp(finalResponse,"CONNECT") != 0))
         {
@@ -345,6 +360,7 @@ static le_result_t StopPDPConnection
     le_result_t          res    = LE_FAULT;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "ATGH",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -421,7 +437,7 @@ static le_result_t StartPPPInterface
             if (WEXITSTATUS(statchild) == 0)
             {
                 // Remove the NO CARRIER unsolicited
-                le_atClient_RemoveUnsolicitedResponseHandler(CallEventId,"NO CARRIER");
+                //~le_atClient_RemoveUnsolicitedResponseHandler(CallEventId,"NO CARRIER");
 
                 return LE_OK;
             }
@@ -486,7 +502,7 @@ static void PppCallHandler
     if (FIND_STRING("NO CARRIER", unsolPtr))
     {
         SetCurrentDataSessionIndex(INVALID_PROFILE_INDEX);
-        le_atClient_RemoveUnsolicitedResponseHandler(CallEventId,"NO CARRIER");
+        //~le_atClient_RemoveUnsolicitedResponseHandler(CallEventId,"NO CARRIER");
     }
 }
 
@@ -504,15 +520,12 @@ le_result_t pa_mdc_Init
 )
 {
     SessionStateEventId = le_event_CreateIdWithRefCounting("SessionStateEventId");
-    UnsolicitedEventId  = le_event_CreateId("UnsolicitedEventId",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
     SessionStatePool = le_mem_CreatePool("SessionStatePool", sizeof(pa_mdc_SessionStateData_t));
-    CallEventId = le_event_CreateId("CallEventId",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    CallEventId = le_event_CreateId("CallEventId",LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     le_event_AddHandler("PppCallHandler",CallEventId,PppCallHandler);
 
     // set unsolicited +CGEV to Register our own handler.
     SetIndicationHandler(2);
-
-    le_event_AddHandler("CGEVUnsolHandler",UnsolicitedEventId,CGEVUnsolHandler);
 
     return LE_OK;
 }
@@ -630,16 +643,17 @@ le_result_t pa_mdc_WriteProfile
     pa_mdc_ProfileData_t* profileDataPtr    ///< [IN] The profile data
 )
 {
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
     le_result_t          res    = LE_FAULT;
     le_atClient_CmdRef_t cmdRef = NULL;
 
     snprintf(command,
-             LE_ATCLIENT_CMD_SIZE_MAX_LEN,
+             LE_ATCLIENT_CMD_MAX_BYTES,
              "AT+CGQREQ=%d,0,0,0,0,0",
              profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -651,11 +665,12 @@ le_result_t pa_mdc_WriteProfile
 
 
     snprintf(command,
-             LE_ATCLIENT_CMD_SIZE_MAX_LEN,
+             LE_ATCLIENT_CMD_MAX_BYTES,
              "AT+CGQMIN=%d,0,0,0,0,0",
              profileIndex);
     cmdRef = NULL;
     res    = le_atClient_SetCommandAndSend(&cmdRef,
+                                           pa_at_GetAtDeviceRef(),
                                            command,
                                            "",
                                            DEFAULT_AT_RESPONSE,
@@ -667,13 +682,14 @@ le_result_t pa_mdc_WriteProfile
 
 
     snprintf(command,
-             LE_ATCLIENT_CMD_SIZE_MAX_LEN,
+             LE_ATCLIENT_CMD_MAX_BYTES,
              "AT+CGDCONT=%d,\"%s\",\"%s\"",
              profileIndex,
              "IP",
              profileDataPtr->apn);
     cmdRef = NULL;
     res    = le_atClient_SetCommandAndSend(&cmdRef,
+                                           pa_at_GetAtDeviceRef(),
                                            command,
                                            "",
                                            DEFAULT_AT_RESPONSE,
@@ -978,9 +994,9 @@ le_result_t pa_mdc_GetIPAddress
         le_atClient_CmdRef_t cmdRef   = NULL;
         char*                tokenPtr = NULL;
         char*                savePtr  = NULL;
-        char                 intermediate[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-        char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-        char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+        char                 intermediate[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+        char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+        char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
         if (!profileIndex)
         {
@@ -988,9 +1004,10 @@ le_result_t pa_mdc_GetIPAddress
             return LE_BAD_PARAMETER;
         }
 
-        snprintf(intermediate,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"+CGDCONT: %d,",profileIndex);
+        snprintf(intermediate,LE_ATCLIENT_CMD_RSP_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
 
         res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            pa_at_GetAtDeviceRef(),
                                             "AT+CGDCONT?",
                                             intermediate,
                                             DEFAULT_AT_RESPONSE,
@@ -1003,7 +1020,7 @@ le_result_t pa_mdc_GetIPAddress
 
         res = le_atClient_GetFinalResponse(cmdRef,
                                         finalResponse,
-                                        LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                        LE_ATCLIENT_CMD_RSP_MAX_BYTES);
 
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
@@ -1014,7 +1031,7 @@ le_result_t pa_mdc_GetIPAddress
 
         res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                     intermediateResponse,
-                                                    LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                    LE_ATCLIENT_CMD_RSP_MAX_BYTES);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the intermediate response");
@@ -1057,10 +1074,10 @@ le_result_t pa_mdc_GetGatewayAddress
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN] ;
-    char                 intermediate[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES] ;
+    char                 intermediate[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!profileIndex)
     {
@@ -1068,10 +1085,11 @@ le_result_t pa_mdc_GetGatewayAddress
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CGPADDR=%d",profileIndex);
-    snprintf(intermediate,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"+CGPADDR: %d,",profileIndex);
+    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CGPADDR=%d",profileIndex);
+    snprintf(intermediate,LE_ATCLIENT_CMD_RSP_MAX_BYTES,"+CGPADDR: %d,",profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         command,
                                         intermediate,
                                         DEFAULT_AT_RESPONSE,
@@ -1084,7 +1102,7 @@ le_result_t pa_mdc_GetGatewayAddress
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -1095,7 +1113,7 @@ le_result_t pa_mdc_GetGatewayAddress
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the intermediate response");
@@ -1230,9 +1248,9 @@ le_result_t pa_mdc_GetAccessPointName
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 intermediate[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediate[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!profileIndex)
     {
@@ -1240,9 +1258,10 @@ le_result_t pa_mdc_GetAccessPointName
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(intermediate,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"+CGDCONT: %d,",profileIndex);
+    snprintf(intermediate,LE_ATCLIENT_CMD_RSP_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CGDCONT?",
                                         intermediate,
                                         DEFAULT_AT_RESPONSE,
@@ -1255,7 +1274,7 @@ le_result_t pa_mdc_GetAccessPointName
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -1266,7 +1285,7 @@ le_result_t pa_mdc_GetAccessPointName
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the intermediate response");

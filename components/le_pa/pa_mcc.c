@@ -6,18 +6,11 @@
  */
 
 #include "legato.h"
-#include "le_atClient.h"
-
+#include "interfaces.h"
 #include "pa_mcc.h"
 #include "pa_utils_local.h"
+#include "pa_at_local.h"
 
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Internal call event
- */
-//--------------------------------------------------------------------------------------------------
-static le_event_Id_t          InternalCallEventId;
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -40,6 +33,17 @@ static le_event_HandlerRef_t  CallHandlerRef = NULL;
 //--------------------------------------------------------------------------------------------------
 static le_atClient_CmdRef_t   AtCmdReqRef = NULL;
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Unsolicited references
+ */
+//--------------------------------------------------------------------------------------------------
+le_atClient_UnsolicitedResponseHandlerRef_t UnsolOkRef = NULL;
+le_atClient_UnsolicitedResponseHandlerRef_t UnsolNoCarrierRef = NULL;
+le_atClient_UnsolicitedResponseHandlerRef_t UnsolBusyRef = NULL;
+le_atClient_UnsolicitedResponseHandlerRef_t UnsolNoAnswerRef = NULL;
+le_atClient_UnsolicitedResponseHandlerRef_t UnsolRingRef = NULL;
+le_atClient_UnsolicitedResponseHandlerRef_t UnsolCringRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -53,10 +57,29 @@ static void UnregisterDial
     void
 )
 {
-    le_atClient_RemoveUnsolicitedResponseHandler(InternalCallEventId,"OK");
-    le_atClient_RemoveUnsolicitedResponseHandler(InternalCallEventId,"NO CARRIER");
-    le_atClient_RemoveUnsolicitedResponseHandler(InternalCallEventId,"BUSY");
-    le_atClient_RemoveUnsolicitedResponseHandler(InternalCallEventId,"NO ANSWER");
+    if (UnsolOkRef)
+    {
+        le_atClient_RemoveUnsolicitedResponseHandler(UnsolOkRef);
+        UnsolOkRef = NULL;
+    }
+
+    if (UnsolNoCarrierRef)
+    {
+        le_atClient_RemoveUnsolicitedResponseHandler(UnsolNoCarrierRef);
+        UnsolNoCarrierRef = NULL;
+    }
+
+    if (UnsolBusyRef)
+    {
+        le_atClient_RemoveUnsolicitedResponseHandler(UnsolBusyRef);
+        UnsolBusyRef = NULL;
+    }
+
+    if (UnsolNoAnswerRef)
+    {
+        le_atClient_RemoveUnsolicitedResponseHandler(UnsolNoAnswerRef);
+        UnsolNoAnswerRef = NULL;
+    }
 
     if (AtCmdReqRef)
     {
@@ -112,23 +135,29 @@ static bool CheckCssuCode
 //--------------------------------------------------------------------------------------------------
 static void PaMccUnsolHandler
 (
-    void* reportPtr
+    const char* unsolPtr,
+    void* contextPtr
 )
 {
-    char*                  unsolPtr = reportPtr;
     pa_mcc_CallEventData_t callData;
 
     memset(&callData,0,sizeof(callData));
     LE_DEBUG("Handler received -%s-",unsolPtr);
 
-    pa_utils_CountAndIsolateLineParameters(unsolPtr);
+    pa_utils_CountAndIsolateLineParameters( (char*) unsolPtr);
 
     callData.terminationEvent = LE_MCC_TERM_UNDEFINED;
 
     if ((FIND_STRING("OK",unsolPtr)))
     {
         callData.event = LE_MCC_EVENT_CONNECTED;
-        le_atClient_RemoveUnsolicitedResponseHandler(InternalCallEventId,"OK");
+
+        if (UnsolOkRef)
+        {
+            le_atClient_RemoveUnsolicitedResponseHandler(UnsolOkRef);
+            UnsolOkRef = NULL;
+        }
+
         if (AtCmdReqRef)
         {
             le_mem_Release(AtCmdReqRef);
@@ -196,10 +225,6 @@ le_result_t pa_mcc_Init
 {
     CallEventId = le_event_CreateId("CallEventId",sizeof(pa_mcc_CallEventData_t));
 
-    InternalCallEventId = le_event_CreateId("InternalCallEventId",
-                                          LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
-    le_event_AddHandler("PaMccUnsolHandler",InternalCallEventId,PaMccUnsolHandler);
-
     return LE_OK;
 }
 
@@ -227,8 +252,17 @@ le_result_t pa_mcc_SetCallEventHandler
         return LE_DUPLICATE;
     }
 
-    le_atClient_AddUnsolicitedResponseHandler(InternalCallEventId,"RING",false);
-    le_atClient_AddUnsolicitedResponseHandler(InternalCallEventId,"+CRING:",false);
+    UnsolRingRef = le_atClient_AddUnsolicitedResponseHandler(   "RING",
+                                                                pa_at_GetAtDeviceRef(),
+                                                                PaMccUnsolHandler,
+                                                                NULL,
+                                                                1   );
+
+    UnsolCringRef = le_atClient_AddUnsolicitedResponseHandler(  "+CRING:",
+                                                                pa_at_GetAtDeviceRef(),
+                                                                PaMccUnsolHandler,
+                                                                NULL,
+                                                                1   );
 
     CallHandlerRef = le_event_AddHandler("NewCallControlHandler",
                                              CallEventId,
@@ -248,9 +282,19 @@ void pa_mcc_ClearCallEventHandler
     void
 )
 {
-    le_atClient_RemoveUnsolicitedResponseHandler(InternalCallEventId,"RING");
-    le_atClient_RemoveUnsolicitedResponseHandler(InternalCallEventId,"+CRING:");
-    le_atClient_RemoveUnsolicitedResponseHandler(InternalCallEventId,"+CSSU:");
+    if (UnsolRingRef)
+    {
+        le_atClient_RemoveUnsolicitedResponseHandler(UnsolRingRef);
+        UnsolRingRef = NULL;
+    }
+
+    if (UnsolCringRef)
+    {
+        le_atClient_RemoveUnsolicitedResponseHandler(UnsolCringRef);
+        UnsolCringRef = NULL;
+    }
+
+    //~le_atClient_RemoveUnsolicitedResponseHandler(UnsolCssuRef);
 
     le_event_RemoveHandler(CallHandlerRef);
     CallHandlerRef = NULL;
@@ -274,7 +318,7 @@ le_result_t pa_mcc_VoiceDial
     le_mcc_TerminationReason_t* errorPtr        ///< [OUT] Call termination error.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
@@ -285,18 +329,40 @@ le_result_t pa_mcc_VoiceDial
     }
 
     snprintf(command,
-             LE_ATCLIENT_CMD_SIZE_MAX_LEN,
+             LE_ATCLIENT_CMD_MAX_BYTES,
              "ATD%s%c%c;",
              phoneNumberPtr,
              (clir==PA_MCC_DEACTIVATE_CLIR)?'i':'I',
              (cug==PA_MCC_ACTIVATE_CUG)?'g':'G');
 
-    le_atClient_AddUnsolicitedResponseHandler(InternalCallEventId,"OK",false);
-    le_atClient_AddUnsolicitedResponseHandler(InternalCallEventId,"NO CARRIER",false);
-    le_atClient_AddUnsolicitedResponseHandler(InternalCallEventId,"BUSY",false);
-    le_atClient_AddUnsolicitedResponseHandler(InternalCallEventId,"NO ANSWER",false);
+    UnsolOkRef = le_atClient_AddUnsolicitedResponseHandler( "OK",
+                                                            pa_at_GetAtDeviceRef(),
+                                                            PaMccUnsolHandler,
+                                                            NULL,
+                                                            1 );
+
+    UnsolNoCarrierRef = le_atClient_AddUnsolicitedResponseHandler(  "NO CARRIER",
+                                                                    pa_at_GetAtDeviceRef(),
+                                                                    PaMccUnsolHandler,
+                                                                    NULL,
+                                                                    1   );
+
+
+    UnsolBusyRef = le_atClient_AddUnsolicitedResponseHandler(   "BUSY",
+                                                                pa_at_GetAtDeviceRef(),
+                                                                PaMccUnsolHandler,
+                                                                NULL,
+                                                                1   );
+
+    UnsolNoAnswerRef = le_atClient_AddUnsolicitedResponseHandler(   "NO ANSWER",
+                                                                    pa_at_GetAtDeviceRef(),
+                                                                    PaMccUnsolHandler,
+                                                                    NULL,
+                                                                    1   );
+
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         (char*)command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -332,9 +398,14 @@ le_result_t pa_mcc_Answer
         AtCmdReqRef = NULL;
     }
 
-    le_atClient_AddUnsolicitedResponseHandler(InternalCallEventId,"NO CARRIER",false);
+    UnsolNoCarrierRef = le_atClient_AddUnsolicitedResponseHandler( "NO CARRIER",
+                                                                   pa_at_GetAtDeviceRef(),
+                                                                   PaMccUnsolHandler,
+                                                                   NULL,
+                                                                   1 );
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "ATA",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -387,6 +458,7 @@ le_result_t pa_mcc_HangUpAll
     UnregisterDial();
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "ATH0",
                                         "",
                                         DEFAULT_AT_RESPONSE,

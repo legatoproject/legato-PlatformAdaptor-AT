@@ -6,7 +6,6 @@
 #ifndef LEGATO_PAUTILSLOCAL_INCLUDE_GUARD
 #define LEGATO_PAUTILSLOCAL_INCLUDE_GUARD
 
-#include "legato.h"
 
 
 //--------------------------------------------------------------------------------------------------

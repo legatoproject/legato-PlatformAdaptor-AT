@@ -5,7 +5,10 @@
  * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
  */
 
-#include "le_atClient.h"
+#include "legato.h"
+#include "interfaces.h"
+#include "pa_utils_local.h"
+#include "pa_at_local.h"
 
 #include "pa_mrc.h"
 #include "pa_mrc_local.h"
@@ -17,12 +20,38 @@
 #include "pa_mdc_local.h"
 #include "pa_mcc_local.h"
 #include "pa_ecall.h"
-#include "pa_utils_local.h"
 #include "pa_ips.h"
 #include "pa_temp.h"
 #include "pa_antenna.h"
 #include "pa_adc_local.h"
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Device reference used for sending AT commands
+ */
+//--------------------------------------------------------------------------------------------------
+le_atClient_DeviceRef_t AtDeviceRef = NULL;
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Device reference used for PPP session
+ */
+//--------------------------------------------------------------------------------------------------
+le_atClient_DeviceRef_t PppDeviceRef = NULL;
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Device path used for sending AT commands
+ */
+//--------------------------------------------------------------------------------------------------
+const char AtPortPath[] = "/dev/ttyACM0";
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Device path used for PPP session
+ */
+//--------------------------------------------------------------------------------------------------
+const char PppPortPath[] = "/dev/ttyACM4";
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -39,6 +68,7 @@ static le_result_t  EnableCmee()
     le_result_t          res    = LE_OK;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CMEE=1",
                                         "\0",
                                         DEFAULT_AT_RESPONSE,
@@ -63,6 +93,7 @@ static le_result_t  DisableEcho()
     le_result_t          res    = LE_OK;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "ATE0",
                                         "\0",
                                         DEFAULT_AT_RESPONSE,
@@ -87,6 +118,7 @@ static le_result_t  SaveSettings()
     le_result_t          res    = LE_OK;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT&W",
                                         "\0",
                                         DEFAULT_AT_RESPONSE,
@@ -143,6 +175,8 @@ static le_result_t  SetNewSmsIndication()
     return LE_OK;
 }
 
+
+
 //--------------------------------------------------------------------------------------------------
 /**
  * Set Default configuration
@@ -189,12 +223,57 @@ static le_result_t SetDefaultConfig()
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * This is used to get the device reference of the AT port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+le_atClient_DeviceRef_t pa_at_GetAtDeviceRef
+(
+    void
+)
+{
+    return AtDeviceRef;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to get the device reference of the PPP port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+le_atClient_DeviceRef_t pa_at_GetPppDeviceRef
+(
+    void
+)
+{
+    return PppDeviceRef;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Component initializer automatically called by the application framework when the process starts.
  *
  **/
 //--------------------------------------------------------------------------------------------------
 COMPONENT_INIT
 {
+    AtDeviceRef = le_atClient_Start(AtPortPath);
+
+    if (AtDeviceRef == NULL)
+    {
+        LE_ERROR("Can't open %s", AtPortPath);
+        return;
+    }
+
+    PppDeviceRef = le_atClient_Start(PppPortPath);
+
+    if (PppDeviceRef == NULL)
+    {
+        LE_ERROR("Can't open %s", PppPortPath);
+        return;
+    }
+
     pa_mrc_Init();
     pa_sms_Init();
     pa_sim_Init();

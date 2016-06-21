@@ -6,11 +6,10 @@
  */
 
 #include "legato.h"
-#include "le_atClient.h"
-
+#include "interfaces.h"
 #include "pa_mrc.h"
 #include "pa_utils_local.h"
-
+#include "pa_at_local.h"
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -28,13 +27,6 @@ static le_mem_PoolRef_t           RegStatePoolRef;
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Unsolicited event identifier
- */
-//--------------------------------------------------------------------------------------------------
-static le_event_Id_t              UnsolicitedEventId;
-
-//--------------------------------------------------------------------------------------------------
-/**
  * Network registering event identifier
  */
 //--------------------------------------------------------------------------------------------------
@@ -47,29 +39,13 @@ static le_event_Id_t              NetworkRegEventId;
 //--------------------------------------------------------------------------------------------------
 static pa_mrc_NetworkRegSetting_t RegNotification = PA_MRC_DISABLE_REG_NOTIFICATION;
 
-
 //--------------------------------------------------------------------------------------------------
 /**
- * This function must be called to initialize pattern matching for unsolicited +CREG notification.
- *
+ * Unsolicited references
  */
 //--------------------------------------------------------------------------------------------------
-static void SubscribeUnsolCREG
-(
-    pa_mrc_NetworkRegSetting_t  mode ///< [IN] The selected Network registration mode.
-)
-{
-    le_atClient_RemoveUnsolicitedResponseHandler(UnsolicitedEventId,"+CREG:");
+le_atClient_UnsolicitedResponseHandlerRef_t UnsolCregRef = NULL;
 
-    if ((mode==PA_MRC_ENABLE_REG_NOTIFICATION) || (mode==PA_MRC_ENABLE_REG_LOC_NOTIFICATION))
-    {
-        le_atClient_AddUnsolicitedResponseHandler(UnsolicitedEventId,
-                                                  "+CREG:",
-                                                  false);
-    }
-
-    RegNotification = mode;
-}
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -77,16 +53,16 @@ static void SubscribeUnsolCREG
  *
  */
 //--------------------------------------------------------------------------------------------------
-static void CREGUnsolHandler
+static void CregUnsolHandler
 (
-    void* reportPtr
+    const char* unsolPtr,
+    void* contextPtr
 )
 {
-    char*                 unsolPtr = reportPtr;
     uint32_t              numParam = 0;
     le_mrc_NetRegState_t* statePtr;
 
-    numParam = pa_utils_CountAndIsolateLineParameters(unsolPtr);
+    numParam = pa_utils_CountAndIsolateLineParameters((char*) unsolPtr);
 
     if (RegNotification == PA_MRC_ENABLE_REG_NOTIFICATION)
     {
@@ -166,6 +142,35 @@ static void CREGUnsolHandler
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * This function must be called to initialize pattern matching for unsolicited +CREG notification.
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+static void SubscribeUnsolCreg
+(
+    pa_mrc_NetworkRegSetting_t  mode ///< [IN] The selected Network registration mode.
+)
+{
+    if (UnsolCregRef)
+    {
+        le_atClient_RemoveUnsolicitedResponseHandler(UnsolCregRef);
+        UnsolCregRef = NULL;
+    }
+
+    if ((mode==PA_MRC_ENABLE_REG_NOTIFICATION) || (mode==PA_MRC_ENABLE_REG_LOC_NOTIFICATION))
+    {
+        UnsolCregRef = le_atClient_AddUnsolicitedResponseHandler(  "+CREG:",
+                                                                    pa_at_GetAtDeviceRef(),
+                                                                    CregUnsolHandler,
+                                                                    NULL,
+                                                                    1   );
+    }
+
+    RegNotification = mode;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * This function set text or number mode for get the network operator.
  *
  */
@@ -177,11 +182,12 @@ static le_result_t SetOperatorTextMode
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (text == true)
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            pa_at_GetAtDeviceRef(),
                                             "AT+COPS=3,0",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -190,6 +196,7 @@ static le_result_t SetOperatorTextMode
     else
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            pa_at_GetAtDeviceRef(),
                                             "AT+COPS=3,2",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -201,7 +208,7 @@ static le_result_t SetOperatorTextMode
         return res;
     }
 
-    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -230,8 +237,8 @@ static le_result_t GetNetworkReg
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!valuePtr)
     {
@@ -240,6 +247,7 @@ static le_result_t GetNetworkReg
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CREG?",
                                         "+CREG:",
                                         DEFAULT_AT_RESPONSE,
@@ -252,7 +260,7 @@ static le_result_t GetNetworkReg
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         le_atClient_Delete(cmdRef);
@@ -261,7 +269,7 @@ static le_result_t GetNetworkReg
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -334,15 +342,12 @@ le_result_t pa_mrc_Init
     void
 )
 {
-    UnsolicitedEventId = le_event_CreateId("MrcUnsolEventId",LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
     NetworkRegEventId = le_event_CreateIdWithRefCounting("NetworkRegEventId");
-
-    le_event_AddHandler("MrcUnsolHandler",UnsolicitedEventId  ,CREGUnsolHandler);
 
     RegStatePoolRef = le_mem_CreatePool("RegStatePool",sizeof(le_mrc_NetRegState_t));
     RegStatePoolRef = le_mem_ExpandPool(RegStatePoolRef,DEFAULT_REGSTATE_POOL_SIZE);
 
-    SubscribeUnsolCREG(PA_MRC_ENABLE_REG_LOC_NOTIFICATION);
+    SubscribeUnsolCreg(PA_MRC_ENABLE_REG_LOC_NOTIFICATION);
 
     pa_mrc_GetNetworkRegConfig(&RegNotification);
 
@@ -364,18 +369,18 @@ le_result_t pa_mrc_SetRadioPower
     le_onoff_t    power   ///< [IN] The power state.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
     le_result_t          res    = LE_FAULT;
     le_atClient_CmdRef_t cmdRef = NULL;
 
     if (power == LE_ON)
     {
-        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CFUN=1");
+        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CFUN=1");
     }
     else if (power == LE_OFF)
     {
-        snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CFUN=4");
+        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CFUN=4");
     }
     else
     {
@@ -383,12 +388,13 @@ le_result_t pa_mrc_SetRadioPower
     }
 
     le_atClient_SetCommandAndSend(&cmdRef,
+                                  pa_at_GetAtDeviceRef(),
                                   command,
                                   "",
                                   DEFAULT_AT_RESPONSE,
                                   DEFAULT_AT_CMD_TIMEOUT);
 
-    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -413,10 +419,11 @@ le_result_t pa_mrc_GetRadioPower
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CFUN?",
                                         "+CFUN:",
                                         DEFAULT_AT_RESPONSE,
@@ -429,7 +436,7 @@ le_result_t pa_mrc_GetRadioPower
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -439,7 +446,7 @@ le_result_t pa_mrc_GetRadioPower
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_DEBUG("Failed to get the response");
@@ -550,13 +557,14 @@ le_result_t pa_mrc_ConfigureNetworkReg
     pa_mrc_NetworkRegSetting_t  setting ///< [IN] The selected Network registration setting.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_SIZE_MAX_LEN];
+    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_SIZE_MAX_LEN,"AT+CREG=%d", setting);
+    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CREG=%d", setting);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -665,8 +673,8 @@ le_result_t pa_mrc_GetSignalStrength
     char*                rest     = NULL;
     char*                savePtr  = NULL;
     int32_t              val      = 0;
-    char intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!rssiPtr)
     {
@@ -675,6 +683,7 @@ le_result_t pa_mrc_GetSignalStrength
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CSQ",
                                         "+CSQ:",
                                         DEFAULT_AT_RESPONSE,
@@ -687,7 +696,7 @@ le_result_t pa_mrc_GetSignalStrength
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                         finalResponse,
-                                        LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                        LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -697,7 +706,7 @@ le_result_t pa_mrc_GetSignalStrength
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -748,8 +757,8 @@ le_result_t pa_mrc_GetCurrentNetwork
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
      if (nameStr != NULL)
     {
@@ -772,6 +781,7 @@ le_result_t pa_mrc_GetCurrentNetwork
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+COPS?",
                                         "+COPS:",
                                         DEFAULT_AT_RESPONSE,
@@ -784,7 +794,7 @@ le_result_t pa_mrc_GetCurrentNetwork
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -794,7 +804,7 @@ le_result_t pa_mrc_GetCurrentNetwork
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -977,9 +987,10 @@ le_result_t pa_mrc_SetAutomaticNetworkRegistration
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CREG=1",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -992,7 +1003,7 @@ le_result_t pa_mrc_SetAutomaticNetworkRegistration
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
     {
         LE_ERROR("Function failed !");
@@ -1025,10 +1036,11 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
     char*                savePtr    = NULL;
     le_atClient_CmdRef_t cmdRef     = NULL;
     le_result_t          res        = LE_FAULT;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CREG?",
                                         "+CREG:",
                                         DEFAULT_AT_RESPONSE,
@@ -1041,7 +1053,7 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
     {
         LE_ERROR("Function failed !");
@@ -1051,7 +1063,7 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response !");
@@ -1094,10 +1106,11 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
     le_result_t          res     = LE_FAULT;
     char*                bandPtr = NULL;
     int                  bitMask = 0;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+KBND?",
                                         "+KBND:",
                                         DEFAULT_AT_RESPONSE,
@@ -1110,7 +1123,7 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1120,7 +1133,7 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -1163,11 +1176,12 @@ le_result_t pa_mrc_SetRatPreferences
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (ratMask == LE_MRC_BITMASK_RAT_GSM)
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            pa_at_GetAtDeviceRef(),
                                             "AT+KSRAT=1",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -1176,6 +1190,7 @@ le_result_t pa_mrc_SetRatPreferences
     else if (ratMask == LE_MRC_BITMASK_RAT_UMTS)
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            pa_at_GetAtDeviceRef(),
                                             "AT+KSRAT=2",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -1184,6 +1199,7 @@ le_result_t pa_mrc_SetRatPreferences
     else if (ratMask == LE_MRC_BITMASK_RAT_ALL)
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
+                                            pa_at_GetAtDeviceRef(),
                                             "AT+KSRAT=4",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -1203,7 +1219,7 @@ le_result_t pa_mrc_SetRatPreferences
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1230,9 +1246,10 @@ le_result_t pa_mrc_SetAutomaticRatPreference
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+KSRAT=4",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -1245,7 +1262,7 @@ le_result_t pa_mrc_SetAutomaticRatPreference
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1274,10 +1291,11 @@ le_result_t pa_mrc_GetRatPreferences
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
     char*                ratPtr = NULL;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+KSRAT?",
                                         "+KSRAT:",
                                         DEFAULT_AT_RESPONSE,
@@ -1290,7 +1308,7 @@ le_result_t pa_mrc_GetRatPreferences
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1300,7 +1318,7 @@ le_result_t pa_mrc_GetRatPreferences
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_DEBUG("Failed to get the response");
@@ -1621,10 +1639,11 @@ le_result_t pa_mrc_GetBandCapabilities
     char*                bandPtr = NULL;
     le_mrc_BandBitMask_t bands   = 0;
     int                  bitMask = 0;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+KBND?",
                                         "+KBND:",
                                         DEFAULT_AT_RESPONSE,
@@ -1637,7 +1656,7 @@ le_result_t pa_mrc_GetBandCapabilities
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1647,7 +1666,7 @@ le_result_t pa_mrc_GetBandCapabilities
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");

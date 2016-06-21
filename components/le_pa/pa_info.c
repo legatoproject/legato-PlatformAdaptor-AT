@@ -7,10 +7,10 @@
  */
 
 #include "legato.h"
-#include "le_atClient.h"
-
+#include "interfaces.h"
 #include "pa_info.h"
 #include "pa_utils_local.h"
+#include "pa_at_local.h"
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -28,8 +28,8 @@ le_result_t pa_info_GetImei
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!imei)
     {
@@ -38,6 +38,7 @@ le_result_t pa_info_GetImei
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CGSN",
                                         "0|1|2|3|4|5|6|7|8|9",
                                         DEFAULT_AT_RESPONSE,
@@ -50,7 +51,7 @@ le_result_t pa_info_GetImei
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -61,7 +62,7 @@ le_result_t pa_info_GetImei
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -93,8 +94,8 @@ le_result_t pa_info_GetFirmwareVersion
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!versionPtr)
     {
@@ -103,6 +104,7 @@ le_result_t pa_info_GetFirmwareVersion
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CGMR",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -115,7 +117,7 @@ le_result_t pa_info_GetFirmwareVersion
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -126,7 +128,7 @@ le_result_t pa_info_GetFirmwareVersion
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -177,8 +179,8 @@ le_result_t pa_info_GetDeviceModel
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!model)
     {
@@ -187,6 +189,7 @@ le_result_t pa_info_GetDeviceModel
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CGMM",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -199,7 +202,7 @@ le_result_t pa_info_GetDeviceModel
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -209,7 +212,7 @@ le_result_t pa_info_GetDeviceModel
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -377,8 +380,8 @@ le_result_t pa_info_GetManufacturerName
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
-    char                 intermediateResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
 
     if (!mfrNameStr)
     {
@@ -387,6 +390,7 @@ le_result_t pa_info_GetManufacturerName
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
                                         "AT+CGMI",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -399,7 +403,7 @@ le_result_t pa_info_GetManufacturerName
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -410,7 +414,7 @@ le_result_t pa_info_GetManufacturerName
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_RESPLINE_SIZE_MAX_BYTES);
+                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
