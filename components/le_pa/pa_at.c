@@ -65,7 +65,7 @@ const char PppPortPath[] = "/dev/ttyACM4";
 static le_result_t  EnableCmee()
 {
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t          res    = LE_OK;
+    le_result_t          res    = LE_FAULT;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -74,7 +74,10 @@ static le_result_t  EnableCmee()
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
 
-    le_atClient_Delete(cmdRef);
+    if (res == LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+    }
     return res;
 }
 
@@ -90,7 +93,7 @@ static le_result_t  EnableCmee()
 static le_result_t  DisableEcho()
 {
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t          res    = LE_OK;
+    le_result_t          res    = LE_FAULT;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -99,7 +102,10 @@ static le_result_t  DisableEcho()
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
 
-    le_atClient_Delete(cmdRef);
+    if (res == LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+    }
     return res;
 }
 
@@ -115,7 +121,7 @@ static le_result_t  DisableEcho()
 static le_result_t  SaveSettings()
 {
     le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t          res    = LE_OK;
+    le_result_t          res    = LE_FAULT;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -123,8 +129,10 @@ static le_result_t  SaveSettings()
                                         "\0",
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
-
-    le_atClient_Delete(cmdRef);
+    if (res == LE_OK)
+    {
+        le_atClient_Delete(cmdRef);
+    }
     return res;
 }
 
@@ -187,7 +195,7 @@ static le_result_t  SetNewSmsIndication()
 //--------------------------------------------------------------------------------------------------
 static le_result_t SetDefaultConfig()
 {
-    if (DisableEcho()!=LE_OK)
+    if (DisableEcho() != LE_OK)
     {
         LE_WARN("modem is not well configured");
         return LE_FAULT;
@@ -205,13 +213,13 @@ static le_result_t SetDefaultConfig()
         return LE_FAULT;
     }
 
-    if (EnableCmee()!=LE_OK)
+    if (EnableCmee() != LE_OK)
     {
         LE_WARN("Failed to enable CMEE error");
         return LE_FAULT;
     }
 
-    if (SaveSettings()!=LE_OK)
+    if (SaveSettings() != LE_OK)
     {
         LE_WARN("Failed to Save Modem Settings");
         return LE_FAULT;
@@ -274,18 +282,20 @@ COMPONENT_INIT
         return;
     }
 
-    pa_mrc_Init();
-    pa_sms_Init();
-    pa_sim_Init();
-    pa_mdc_Init();
-    pa_mcc_Init();
-    pa_ips_Init();
-    pa_temp_Init();
-    pa_antenna_Init();
-    pa_adc_Init();
-
     if (SetDefaultConfig() != LE_OK)
     {
-        LE_WARN("PA is not configured as expected");
+        LE_ERROR("PA is not configured as expected");
+    }
+    else
+    {
+        pa_mrc_Init();
+        pa_sms_Init();
+        pa_sim_Init();
+        pa_mdc_Init();
+        pa_mcc_Init();
+        pa_ips_Init();
+        pa_temp_Init();
+        pa_antenna_Init();
+        pa_adc_Init();
     }
 }

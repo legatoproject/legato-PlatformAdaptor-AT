@@ -256,9 +256,8 @@ static le_result_t SetIndicationHandler
             le_atClient_RemoveUnsolicitedResponseHandler(UnsolCgevRef);
             UnsolCgevRef = NULL;
         }
+        le_atClient_Delete(cmdRef);
     }
-
-    le_atClient_Delete(cmdRef);
     return res;
 }
 
