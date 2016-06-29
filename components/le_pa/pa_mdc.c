@@ -394,7 +394,7 @@ static le_result_t StartPPPInterface
             "noauth",
             "nolock",
             "debug",
-            "/dev/ttyACM0",
+            pa_at_GetPppPath(),
             "115200",
             "defaultroute",
             "noipdefault",

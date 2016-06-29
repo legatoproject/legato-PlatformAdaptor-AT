@@ -28,5 +28,16 @@ le_atClient_DeviceRef_t pa_at_GetPppDeviceRef
     void
 );
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to get the path of the PPP port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+char* pa_at_GetPppPath
+(
+    void
+);
+
 
 #endif // LEGATO_PAATLOCAL_INCLUDE_GUARD
