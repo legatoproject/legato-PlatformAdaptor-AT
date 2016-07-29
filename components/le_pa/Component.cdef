@@ -42,5 +42,6 @@ cflags:
     -I$LEGATO_ROOT/components/modemServices/modemDaemon
     -I$LEGATO_ROOT/components/modemServices/platformAdaptor/inc
     -I$LEGATO_ROOT/components
+    -I$LEGATO_ROOT/interfaces/atServices
 }
 
