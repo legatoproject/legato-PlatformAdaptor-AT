@@ -24,6 +24,7 @@
 #include "pa_temp.h"
 #include "pa_antenna.h"
 #include "pa_adc_local.h"
+#include <termios.h>
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -273,25 +274,75 @@ char* pa_at_GetPppPath
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * This is used to open and configure the port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+static int OpenAndConfigurePort
+(
+    const char* portPath
+)
+{
+    int fd = open(portPath, O_RDWR | O_NOCTTY | O_NONBLOCK);
+
+    if (fd < 0)
+    {
+        LE_ERROR("Open device failed, errno %d, %s", errno, strerror(errno));
+        return fd;
+    }
+
+    struct termios term;
+    bzero(&term, sizeof(term));
+
+    // Default config
+    tcgetattr(fd, &term);
+    cfmakeraw(&term);
+    term.c_oflag &= ~OCRNL;
+    term.c_oflag &= ~ONLCR;
+    term.c_oflag &= ~OPOST;
+    tcsetattr(fd, TCSANOW, &term);
+    tcflush(fd, TCIOFLUSH);
+
+    return fd;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Component initializer automatically called by the application framework when the process starts.
  *
  **/
 //--------------------------------------------------------------------------------------------------
 COMPONENT_INIT
 {
-    AtDeviceRef = le_atClient_Start(AtPortPath);
+    int fd = OpenAndConfigurePort(AtPortPath);
 
-    if (AtDeviceRef == NULL)
+    if (fd < 0)
     {
         LE_ERROR("Can't open %s", AtPortPath);
         return;
     }
 
-    PppDeviceRef = le_atClient_Start(PppPortPath);
+    AtDeviceRef = le_atClient_Start(fd);
+
+    if (AtDeviceRef == NULL)
+    {
+        LE_ERROR("Can't start %s, fd = %d", AtPortPath, fd);
+        return;
+    }
+
+    fd = OpenAndConfigurePort(PppPortPath);
+
+    if (fd < 0)
+    {
+        LE_ERROR("Can't open %s", PppPortPath);
+        return;
+    }
+
+    PppDeviceRef = le_atClient_Start(fd);
 
     if (PppDeviceRef == NULL)
     {
-        LE_ERROR("Can't open %s", PppPortPath);
+        LE_ERROR("Can't start %s, fd = %d", AtPortPath, fd);
         return;
     }
 
