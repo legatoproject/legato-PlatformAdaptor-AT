@@ -419,6 +419,44 @@ le_result_t pa_gnss_DeleteSuplCertificate
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Set the enabled NMEA sentences bit mask
+ *
+ * @return
+ *  - LE_OK on success
+ *  - LE_FAULT on failure
+ *  - LE_BUSY service is busy
+ *  - LE_TIMEOUT a time-out occurred
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_SetNmeaSentences
+(
+    le_gnss_NmeaBitMask_t nmeaMask ///< [IN] Bit mask for enabled NMEA sentences.
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get the enabled NMEA sentences bit mask
+ *
+* @return
+*  - LE_OK on success
+*  - LE_FAULT on failure
+*  - LE_BUSY service is busy
+*  - LE_TIMEOUT a time-out occurred
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetNmeaSentences
+(
+    le_gnss_NmeaBitMask_t* nmeaMaskPtr ///< [OUT] Bit mask for enabled NMEA sentences.
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Component initializer called automatically by the Legato application framework.
  * This is not used because we want to make sure that GNSS is available before initializing
  * the platform adapter.
