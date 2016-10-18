@@ -35,6 +35,7 @@ sources:
     pa_riPin.c
     pa_adc.c
     pa_rtc.c
+    pa_rsim.c
 }
 
 cflags:
