@@ -125,11 +125,11 @@ static le_result_t AttachGPRS
     bool toAttach   ///< [IN] boolean value
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CGATT=%d",toAttach);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGATT=%d",toAttach);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -156,11 +156,11 @@ static le_result_t ActivateContext
     bool     toActivate       ///< [IN] activation boolean
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CGACT=%d,%d",toActivate,profileIndex);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGACT=%d,%d",toActivate,profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -229,11 +229,11 @@ static le_result_t SetIndicationHandler
     uint32_t  mode  ///< Unsolicited result mode
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CGEREP=%d",mode);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGEREP=%d",mode);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -278,8 +278,8 @@ static le_result_t StartPDPConnection
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES] ;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES] ;
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!profileIndex)
     {
@@ -287,7 +287,7 @@ static le_result_t StartPDPConnection
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"ATD*99***%d#",profileIndex);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"ATD*99***%d#",profileIndex);
 
     cmdRef = le_atClient_Create();
     LE_DEBUG("New command ref (%p) created",cmdRef);
@@ -327,7 +327,7 @@ static le_result_t StartPDPConnection
     {
         res = le_atClient_GetFinalResponse(cmdRef,
                                         finalResponse,
-                                        LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
         if ((res != LE_OK) || (strcmp(finalResponse,"CONNECT") != 0))
         {
@@ -520,7 +520,7 @@ le_result_t pa_mdc_Init
 {
     SessionStateEventId = le_event_CreateIdWithRefCounting("SessionStateEventId");
     SessionStatePool = le_mem_CreatePool("SessionStatePool", sizeof(pa_mdc_SessionStateData_t));
-    CallEventId = le_event_CreateId("CallEventId",LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+    CallEventId = le_event_CreateId("CallEventId",LE_ATDEFS_RESPONSE_MAX_BYTES);
     le_event_AddHandler("PppCallHandler",CallEventId,PppCallHandler);
 
     // set unsolicited +CGEV to Register our own handler.
@@ -642,12 +642,12 @@ le_result_t pa_mdc_WriteProfile
     pa_mdc_ProfileData_t* profileDataPtr    ///< [IN] The profile data
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_result_t          res    = LE_FAULT;
     le_atClient_CmdRef_t cmdRef = NULL;
 
     snprintf(command,
-             LE_ATCLIENT_CMD_MAX_BYTES,
+             LE_ATDEFS_COMMAND_MAX_BYTES,
              "AT+CGQREQ=%d,0,0,0,0,0",
              profileIndex);
 
@@ -664,7 +664,7 @@ le_result_t pa_mdc_WriteProfile
 
 
     snprintf(command,
-             LE_ATCLIENT_CMD_MAX_BYTES,
+             LE_ATDEFS_COMMAND_MAX_BYTES,
              "AT+CGQMIN=%d,0,0,0,0,0",
              profileIndex);
     cmdRef = NULL;
@@ -681,7 +681,7 @@ le_result_t pa_mdc_WriteProfile
 
 
     snprintf(command,
-             LE_ATCLIENT_CMD_MAX_BYTES,
+             LE_ATDEFS_COMMAND_MAX_BYTES,
              "AT+CGDCONT=%d,\"%s\",\"%s\"",
              profileIndex,
              "IP",
@@ -993,9 +993,9 @@ le_result_t pa_mdc_GetIPAddress
         le_atClient_CmdRef_t cmdRef   = NULL;
         char*                tokenPtr = NULL;
         char*                savePtr  = NULL;
-        char                 intermediate[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-        char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-        char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+        char                 intermediate[LE_ATDEFS_RESPONSE_MAX_BYTES];
+        char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+        char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
         if (!profileIndex)
         {
@@ -1003,7 +1003,7 @@ le_result_t pa_mdc_GetIPAddress
             return LE_BAD_PARAMETER;
         }
 
-        snprintf(intermediate,LE_ATCLIENT_CMD_RSP_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
+        snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
 
         res = le_atClient_SetCommandAndSend(&cmdRef,
                                             pa_at_GetAtDeviceRef(),
@@ -1019,7 +1019,7 @@ le_result_t pa_mdc_GetIPAddress
 
         res = le_atClient_GetFinalResponse(cmdRef,
                                         finalResponse,
-                                        LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
@@ -1030,7 +1030,7 @@ le_result_t pa_mdc_GetIPAddress
 
         res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                     intermediateResponse,
-                                                    LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                    LE_ATDEFS_RESPONSE_MAX_BYTES);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the intermediate response");
@@ -1073,10 +1073,10 @@ le_result_t pa_mdc_GetGatewayAddress
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES] ;
-    char                 intermediate[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES] ;
+    char                 intermediate[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!profileIndex)
     {
@@ -1084,8 +1084,8 @@ le_result_t pa_mdc_GetGatewayAddress
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CGPADDR=%d",profileIndex);
-    snprintf(intermediate,LE_ATCLIENT_CMD_RSP_MAX_BYTES,"+CGPADDR: %d,",profileIndex);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGPADDR=%d",profileIndex);
+    snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGPADDR: %d,",profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1101,7 +1101,7 @@ le_result_t pa_mdc_GetGatewayAddress
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -1112,7 +1112,7 @@ le_result_t pa_mdc_GetGatewayAddress
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the intermediate response");
@@ -1247,9 +1247,9 @@ le_result_t pa_mdc_GetAccessPointName
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 intermediate[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediate[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!profileIndex)
     {
@@ -1257,7 +1257,7 @@ le_result_t pa_mdc_GetAccessPointName
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(intermediate,LE_ATCLIENT_CMD_RSP_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
+    snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1273,7 +1273,7 @@ le_result_t pa_mdc_GetAccessPointName
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -1284,7 +1284,7 @@ le_result_t pa_mdc_GetAccessPointName
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the intermediate response");

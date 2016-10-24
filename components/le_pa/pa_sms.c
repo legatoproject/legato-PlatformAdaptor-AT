@@ -435,13 +435,13 @@ le_result_t pa_sms_SetNewMsgIndic
     pa_sms_NmiBfr_t  bfr   ///< [IN] TA buffer of unsolicited result codes mode.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
     SetNewMsgIndicLocal(mt,bm,ds);
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CNMI=%d,%d,%d,%d,%d",mode,mt,bm,ds,bfr);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CNMI=%d,%d,%d,%d,%d",mode,mt,bm,ds,bfr);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -479,8 +479,8 @@ le_result_t pa_sms_GetNewMsgIndic
     char*                savePtr  = NULL;
     le_atClient_CmdRef_t cmdRef   = NULL;
     le_result_t          res      = LE_FAULT;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!modePtr && !mtPtr && !bmPtr && !dsPtr && !bfrPtr)
     {
@@ -502,7 +502,7 @@ le_result_t pa_sms_GetNewMsgIndic
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
     {
@@ -513,7 +513,7 @@ le_result_t pa_sms_GetNewMsgIndic
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the intermediateResponse");
@@ -553,12 +553,12 @@ le_result_t pa_sms_SetMsgFormat
     le_sms_Format_t   format   ///< [IN] The preferred message format.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CMGF=%d",format);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGF=%d",format);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -574,7 +574,7 @@ le_result_t pa_sms_SetMsgFormat
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -604,9 +604,9 @@ int32_t pa_sms_SendPduMsg
     pa_sms_SendingErrCode_t *errorCode   ///< [OUT] The error code.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     char                 hexString[LE_SMS_PDU_MAX_BYTES*2+1] = {0};
     uint32_t             hexStringSize;
     le_atClient_CmdRef_t cmdRef = NULL;
@@ -618,7 +618,7 @@ int32_t pa_sms_SendPduMsg
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CMGS=%d",length-1);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGS=%d",length-1);
 
     hexStringSize = le_hex_BinaryToString(dataPtr,length,hexString,sizeof(hexString));
     LE_INFO("Pdu string: %s, size = %d", hexString, hexStringSize);
@@ -677,7 +677,7 @@ int32_t pa_sms_SendPduMsg
     {
         res = le_atClient_GetFinalResponse(cmdRef,
                                            finalResponse,
-                                           LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                           LE_ATDEFS_RESPONSE_MAX_BYTES);
         if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
         {
             LE_ERROR("Failed to get the finalResponse");
@@ -687,7 +687,7 @@ int32_t pa_sms_SendPduMsg
 
         res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                        intermediateResponse,
-                                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
         if (res != LE_OK)
         {
             LE_ERROR("Failed to get the intermediateResponse");
@@ -738,12 +738,12 @@ le_result_t pa_sms_RdPDUMsgFromMem
     pa_sms_Pdu_t*       msgPtr      ///< [OUT] The message.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     char*                tokenPtr = NULL;
     le_atClient_CmdRef_t cmdRef   = NULL;
     le_result_t          res      = LE_FAULT;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!msgPtr)
     {
@@ -751,7 +751,7 @@ le_result_t pa_sms_RdPDUMsgFromMem
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CMGR=%d",index);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGR=%d",index);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -767,7 +767,7 @@ le_result_t pa_sms_RdPDUMsgFromMem
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -777,7 +777,7 @@ le_result_t pa_sms_RdPDUMsgFromMem
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -793,7 +793,7 @@ le_result_t pa_sms_RdPDUMsgFromMem
 
     res = le_atClient_GetNextIntermediateResponse(cmdRef,
                                                   intermediateResponse,
-                                                  LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                  LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -845,12 +845,12 @@ le_result_t pa_sms_ListMsgFromMem
     pa_sms_Storage_t    storage     ///< [IN] SMS Storage used.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     char*                tokenPtr = NULL;
     le_atClient_CmdRef_t cmdRef   = NULL;
     le_result_t          res      = LE_OK;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     uint32_t             cpt = 0;
 
     if (!numPtr && !idxPtr)
@@ -868,11 +868,11 @@ le_result_t pa_sms_ListMsgFromMem
 
     if (status == LE_SMS_RX_READ)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CMGL=1");
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGL=1");
     }
     else if (status == LE_SMS_RX_UNREAD)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CMGL=0");
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGL=0");
     }
     else
     {
@@ -893,7 +893,7 @@ le_result_t pa_sms_ListMsgFromMem
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -904,7 +904,7 @@ le_result_t pa_sms_ListMsgFromMem
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     while(res == LE_OK)
     {
@@ -915,7 +915,7 @@ le_result_t pa_sms_ListMsgFromMem
 
         res = le_atClient_GetNextIntermediateResponse(cmdRef,
                                                     intermediateResponse,
-                                                    LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                    LE_ATDEFS_RESPONSE_MAX_BYTES);
     }
     le_atClient_Delete(cmdRef);
 
@@ -947,12 +947,12 @@ le_result_t pa_sms_DelMsgFromMem
     pa_sms_Storage_t    storage   ///< [IN] SMS Storage used..
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CMGD=%d,0",index);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGD=%d,0",index);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -968,7 +968,7 @@ le_result_t pa_sms_DelMsgFromMem
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -995,7 +995,7 @@ le_result_t pa_sms_DelAllMsg
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1011,7 +1011,7 @@ le_result_t pa_sms_DelAllMsg
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -1038,7 +1038,7 @@ le_result_t pa_sms_SaveSettings
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1054,7 +1054,7 @@ le_result_t pa_sms_SaveSettings
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -1081,7 +1081,7 @@ le_result_t pa_sms_RestoreSettings
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1097,7 +1097,7 @@ le_result_t pa_sms_RestoreSettings
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -1149,8 +1149,8 @@ le_result_t pa_sms_GetSmsc
     le_atClient_CmdRef_t cmdRef   = NULL;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!smscPtr)
     {
@@ -1173,7 +1173,7 @@ le_result_t pa_sms_GetSmsc
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -1184,7 +1184,7 @@ le_result_t pa_sms_GetSmsc
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");

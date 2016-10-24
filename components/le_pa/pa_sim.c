@@ -287,7 +287,7 @@ le_result_t pa_sim_Init
     SimEventPoolRef = le_mem_CreatePool("SimEventPool", sizeof(pa_sim_Event_t));
     SimEventPoolRef = le_mem_ExpandPool(SimEventPoolRef, DEFAULT_SIMEVENT_POOL_SIZE);
 
-    EventUnsolicitedId = le_event_CreateId("SIMEventIdUnsol", LE_ATCLIENT_UNSOLICITED_MAX_BYTES);
+    EventUnsolicitedId = le_event_CreateId("SIMEventIdUnsol", LE_ATDEFS_UNSOLICITED_MAX_BYTES);
     EventNewSimStateId = le_event_CreateIdWithRefCounting("SIMEventIdNewState");
     le_event_AddHandler("SimUnsolicitedHandler", EventUnsolicitedId, SimUnsolicitedHandler);
 
@@ -372,8 +372,8 @@ le_result_t pa_sim_GetCardIdentification
     le_atClient_CmdRef_t cmdRef   = NULL;
     char*                tokenPtr = NULL;
     le_result_t          res      = LE_OK;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!iccid)
     {
@@ -396,7 +396,7 @@ le_result_t pa_sim_GetCardIdentification
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -407,7 +407,7 @@ le_result_t pa_sim_GetCardIdentification
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if (res != LE_OK)
     {
@@ -442,8 +442,8 @@ le_result_t pa_sim_GetIMSI
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!imsi)
     {
@@ -466,7 +466,7 @@ le_result_t pa_sim_GetIMSI
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -477,7 +477,7 @@ le_result_t pa_sim_GetIMSI
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if (res != LE_OK)
     {
@@ -510,7 +510,7 @@ le_result_t pa_sim_GetState
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!statePtr)
     {
@@ -535,7 +535,7 @@ le_result_t pa_sim_GetState
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if (res != LE_OK)
     {
@@ -609,11 +609,11 @@ le_result_t pa_sim_EnterPIN
     const pa_sim_Pin_t pin    ///< [IN] pin code
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CPIN=%s",pin);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CPIN=%s",pin);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -653,11 +653,11 @@ le_result_t pa_sim_EnterPUK
     const pa_sim_Pin_t pin   ///< [IN] new PIN code
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CPIN=%s,%s",puk,pin);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CPIN=%s,%s",puk,pin);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -773,17 +773,17 @@ le_result_t pa_sim_ChangePIN
     const pa_sim_Pin_t newcode  ///< [IN] New code
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
 
     if (type==PA_SIM_PIN)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CPWD=\"SC\",%s,%s",oldcode,newcode);
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CPWD=\"SC\",%s,%s",oldcode,newcode);
     }
     else if (type==PA_SIM_PIN2)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CPWD=\"P2\",%s,%s",oldcode,newcode);
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CPWD=\"P2\",%s,%s",oldcode,newcode);
     }
     else
     {
@@ -824,17 +824,17 @@ le_result_t pa_sim_EnablePIN
     const pa_sim_Pin_t code   ///< [IN] code
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
 
     if (type==PA_SIM_PIN)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"at+clck=\"SC\",1,%s",code);
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"at+clck=\"SC\",1,%s",code);
     }
     else if (type==PA_SIM_PIN2)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"at+clck=\"P2\",1,%s",code);
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"at+clck=\"P2\",1,%s",code);
     }
     else
     {
@@ -875,17 +875,17 @@ le_result_t pa_sim_DisablePIN
     const pa_sim_Pin_t code   ///< [IN] code
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;
 
     if      (type==PA_SIM_PIN)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"at+clck=\"SC\",0,%s",code);
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"at+clck=\"SC\",0,%s",code);
     }
     else if (type==PA_SIM_PIN2)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"at+clck=\"P2\",0,%s",code);
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"at+clck=\"P2\",0,%s",code);
     }
     else
     {
@@ -951,8 +951,8 @@ le_result_t pa_sim_GetHomeNetworkOperator
     le_atClient_CmdRef_t cmdRef   = NULL;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!nameStr)
     {
@@ -975,7 +975,7 @@ le_result_t pa_sim_GetHomeNetworkOperator
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
@@ -986,7 +986,7 @@ le_result_t pa_sim_GetHomeNetworkOperator
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
 
     if (res != LE_OK)
     {

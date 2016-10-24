@@ -182,7 +182,7 @@ static le_result_t SetOperatorTextMode
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (text == true)
     {
@@ -208,7 +208,7 @@ static le_result_t SetOperatorTextMode
         return res;
     }
 
-    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -237,8 +237,8 @@ static le_result_t GetNetworkReg
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!valuePtr)
     {
@@ -260,7 +260,7 @@ static le_result_t GetNetworkReg
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         le_atClient_Delete(cmdRef);
@@ -269,7 +269,7 @@ static le_result_t GetNetworkReg
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -369,18 +369,18 @@ le_result_t pa_mrc_SetRadioPower
     le_onoff_t    power   ///< [IN] The power state.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     le_result_t          res    = LE_FAULT;
     le_atClient_CmdRef_t cmdRef = NULL;
 
     if (power == LE_ON)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CFUN=1");
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CFUN=1");
     }
     else if (power == LE_OFF)
     {
-        snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CFUN=4");
+        snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CFUN=4");
     }
     else
     {
@@ -394,7 +394,7 @@ le_result_t pa_mrc_SetRadioPower
                                   DEFAULT_AT_RESPONSE,
                                   DEFAULT_AT_CMD_TIMEOUT);
 
-    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+    res = le_atClient_GetFinalResponse(cmdRef,finalResponse,LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -419,8 +419,8 @@ le_result_t pa_mrc_GetRadioPower
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -436,7 +436,7 @@ le_result_t pa_mrc_GetRadioPower
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -446,7 +446,7 @@ le_result_t pa_mrc_GetRadioPower
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_DEBUG("Failed to get the response");
@@ -557,11 +557,11 @@ le_result_t pa_mrc_ConfigureNetworkReg
     pa_mrc_NetworkRegSetting_t  setting ///< [IN] The selected Network registration setting.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATCLIENT_CMD_MAX_BYTES,"AT+CREG=%d", setting);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CREG=%d", setting);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -673,8 +673,8 @@ le_result_t pa_mrc_GetSignalStrength
     char*                rest     = NULL;
     char*                savePtr  = NULL;
     int32_t              val      = 0;
-    char intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (!rssiPtr)
     {
@@ -696,7 +696,7 @@ le_result_t pa_mrc_GetSignalStrength
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                         finalResponse,
-                                        LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -706,7 +706,7 @@ le_result_t pa_mrc_GetSignalStrength
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -757,8 +757,8 @@ le_result_t pa_mrc_GetCurrentNetwork
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
      if (nameStr != NULL)
     {
@@ -794,7 +794,7 @@ le_result_t pa_mrc_GetCurrentNetwork
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -804,7 +804,7 @@ le_result_t pa_mrc_GetCurrentNetwork
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -987,7 +987,7 @@ le_result_t pa_mrc_SetAutomaticNetworkRegistration
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1003,7 +1003,7 @@ le_result_t pa_mrc_SetAutomaticNetworkRegistration
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
     {
         LE_ERROR("Function failed !");
@@ -1036,8 +1036,8 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
     char*                savePtr    = NULL;
     le_atClient_CmdRef_t cmdRef     = NULL;
     le_result_t          res        = LE_FAULT;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1053,7 +1053,7 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
     {
         LE_ERROR("Function failed !");
@@ -1063,7 +1063,7 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response !");
@@ -1106,8 +1106,8 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
     le_result_t          res     = LE_FAULT;
     char*                bandPtr = NULL;
     int                  bitMask = 0;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1123,7 +1123,7 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1133,7 +1133,7 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
@@ -1176,7 +1176,7 @@ le_result_t pa_mrc_SetRatPreferences
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     if (ratMask == LE_MRC_BITMASK_RAT_GSM)
     {
@@ -1219,7 +1219,7 @@ le_result_t pa_mrc_SetRatPreferences
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1246,7 +1246,7 @@ le_result_t pa_mrc_SetAutomaticRatPreference
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1262,7 +1262,7 @@ le_result_t pa_mrc_SetAutomaticRatPreference
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1291,8 +1291,8 @@ le_result_t pa_mrc_GetRatPreferences
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
     char*                ratPtr = NULL;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1308,7 +1308,7 @@ le_result_t pa_mrc_GetRatPreferences
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1318,7 +1318,7 @@ le_result_t pa_mrc_GetRatPreferences
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_DEBUG("Failed to get the response");
@@ -1639,8 +1639,8 @@ le_result_t pa_mrc_GetBandCapabilities
     char*                bandPtr = NULL;
     le_mrc_BandBitMask_t bands   = 0;
     int                  bitMask = 0;
-    char                 intermediateResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
-    char                 finalResponse[LE_ATCLIENT_CMD_RSP_MAX_BYTES];
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_at_GetAtDeviceRef(),
@@ -1656,7 +1656,7 @@ le_result_t pa_mrc_GetBandCapabilities
 
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
-                                       LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
     if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
     {
         LE_ERROR("Failed to get the response");
@@ -1666,7 +1666,7 @@ le_result_t pa_mrc_GetBandCapabilities
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    intermediateResponse,
-                                                   LE_ATCLIENT_CMD_RSP_MAX_BYTES);
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");

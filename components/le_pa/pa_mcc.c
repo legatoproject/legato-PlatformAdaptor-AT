@@ -318,7 +318,7 @@ le_result_t pa_mcc_VoiceDial
     le_mcc_TerminationReason_t* errorPtr        ///< [OUT] Call termination error.
 )
 {
-    char                 command[LE_ATCLIENT_CMD_MAX_BYTES];
+    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
@@ -329,7 +329,7 @@ le_result_t pa_mcc_VoiceDial
     }
 
     snprintf(command,
-             LE_ATCLIENT_CMD_MAX_BYTES,
+             LE_ATDEFS_COMMAND_MAX_BYTES,
              "ATD%s%c%c;",
              phoneNumberPtr,
              (clir==PA_MCC_DEACTIVATE_CLIR)?'i':'I',
