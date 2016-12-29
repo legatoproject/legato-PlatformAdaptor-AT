@@ -75,6 +75,69 @@ le_result_t pa_info_GetImei
     return res;
 }
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function get the International Mobile Equipment Identity software version number (IMEISV).
+ *
+ * @return  LE_FAULT         The function failed to get the value.
+ * @return  LE_TIMEOUT       No response was received from the Modem.
+ * @return  LE_OK            The function succeeded.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_info_GetImeiSv
+(
+    pa_info_ImeiSv_t imeiSv   ///< [OUT] IMEISV value
+)
+{
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+
+    if (!imeiSv)
+    {
+        LE_DEBUG("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_at_GetAtDeviceRef(),
+                                        "AT+WSVN?",
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
+
+    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+    }
+    else
+    {
+        strncpy(imeiSv, intermediateResponse, strlen(intermediateResponse));
+    }
+    le_atClient_Delete(cmdRef);
+    return res;
+}
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -278,7 +341,8 @@ le_result_t pa_info_GetMin
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetEsn
 (
-    char*  esnStr,            ///< [OUT] The Electronic Serial Number (ESN) of the device string (null-terminated).
+    char*  esnStr,            ///< [OUT] The Electronic Serial Number (ESN) of the device string
+                              ///< (null-terminated).
     size_t esnStrNumElements  ///< [IN] Size of Electronic Serial Number string.
 )
 {
@@ -355,7 +419,8 @@ le_result_t pa_info_GetPrlOnlyPreference
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetNai
 (
-    char*  naiStr,            ///< [OUT] The Network Access Identifier (NAI) string (null-terminated).
+    char*  naiStr,            ///< [OUT] The Network Access Identifier (NAI) string
+                              ///< (null-terminated).
     size_t naiStrNumElements  ///< [IN] Size of Network Access Identifier string.
 )
 {
@@ -441,10 +506,12 @@ le_result_t pa_info_GetPriId
 (
     char*  priIdPnStr,              ///< [OUT] The Product Requirement Information Identifier
                                     ///<       (PRI ID) Part Number string (null-terminated).
-    size_t priIdPnStrNumElements,   ///< [IN] Size of Product Requirement Information Identifier string.
+    size_t priIdPnStrNumElements,   ///< [IN] Size of Product Requirement Information Identifier
+                                    ///<      string.
     char*  priIdRevStr,             ///< [OUT] The Product Requirement Information Identifier
                                     ///<       (PRI ID) Revision Number string (null-terminated).
-    size_t priIdRevStrNumElements   ///< [IN] Size of Product Requirement Information Identifier string.
+    size_t priIdRevStrNumElements   ///< [IN] Size of Product Requirement Information Identifier
+                                    ///<      string.
 )
 {
     le_result_t res = LE_FAULT;
