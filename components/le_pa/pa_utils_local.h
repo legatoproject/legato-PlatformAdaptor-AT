@@ -1,6 +1,6 @@
 /** @file pa_utils_local.h
  *
- * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
+ * Copyright (C) Sierra Wireless Inc.
  */
 
 #ifndef LEGATO_PAUTILSLOCAL_INCLUDE_GUARD

@@ -3,7 +3,7 @@
  *
  * AT implementation of @ref c_pa_ecall API.
  *
- * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
+ * Copyright (C) Sierra Wireless Inc.
  */
 
 

@@ -3,7 +3,7 @@
  *
  * AT implementation of PA Ring Indicator signal.
  *
- * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
+ * Copyright (C) Sierra Wireless Inc.
  */
 
 #include "pa_riPin.h"

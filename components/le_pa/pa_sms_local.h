@@ -1,6 +1,6 @@
 /** @file pa_sms_local.h
  *
- * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
+ * Copyright (C) Sierra Wireless Inc.
  */
 
 #ifndef LEGATO_PASMSLOCAL_INCLUDE_GUARD

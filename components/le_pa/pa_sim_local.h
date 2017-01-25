@@ -1,6 +1,6 @@
 /** @file pa_sim_local.h
  *
- * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
+ * Copyright (C) Sierra Wireless Inc.
  */
 
 #ifndef LEGATO_PASIMLOCAL_INCLUDE_GUARD

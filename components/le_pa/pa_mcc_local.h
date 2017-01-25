@@ -1,6 +1,6 @@
 /** @file pa_mcc_local.h
  *
- * Copyright (C) Sierra Wireless Inc. Use of this work is subject to license.
+ * Copyright (C) Sierra Wireless Inc.
  */
 
 #ifndef LEGATO_PAMCCLOCAL_INCLUDE_GUARD
