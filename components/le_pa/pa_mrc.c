@@ -1625,8 +1625,9 @@ le_result_t pa_mrc_GetServingCellLocAreaCode
  * Get the Band capabilities
  *
  * @return
- *  - LE_FAULT  Function failed.
- *  - LE_OK     Function succeeded.
+ *  - LE_OK              on success
+ *  - LE_FAULT           on failure
+ *  - LE_UNSUPPORTED     The platform does not support this operation.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetBandCapabilities
@@ -1661,7 +1662,7 @@ le_result_t pa_mrc_GetBandCapabilities
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
-        return res;
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -1670,6 +1671,7 @@ le_result_t pa_mrc_GetBandCapabilities
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
+        res = LE_FAULT;
     }
     else
     {
@@ -1737,8 +1739,9 @@ le_result_t pa_mrc_GetBandCapabilities
  * Get the LTE Band capabilities
  *
  * @return
- * - LE_OK              on success
- * - LE_FAULT           on failure
+ *  - LE_OK              on success
+ *  - LE_FAULT           on failure
+ *  - LE_UNSUPPORTED     The platform does not support this operation.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetLteBandCapabilities
@@ -1747,7 +1750,7 @@ le_result_t pa_mrc_GetLteBandCapabilities
 )
 {
     LE_WARN("LTE not available");
-    return LE_FAULT;
+    return LE_UNSUPPORTED;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1755,8 +1758,9 @@ le_result_t pa_mrc_GetLteBandCapabilities
  * Get the TD-SCDMA Band capabilities
  *
  * @return
- * - LE_OK              on success
- * - LE_FAULT           on failure
+ *  - LE_OK              on success
+ *  - LE_FAULT           on failure
+ *  - LE_UNSUPPORTED     The platform does not support this operation.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetTdScdmaBandCapabilities
@@ -1765,7 +1769,7 @@ le_result_t pa_mrc_GetTdScdmaBandCapabilities
 )
 {
     LE_WARN("CDMA not available");
-    return LE_FAULT;
+    return LE_UNSUPPORTED;
 }
 
 //--------------------------------------------------------------------------------------------------
