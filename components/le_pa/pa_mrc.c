@@ -1784,66 +1784,13 @@ le_result_t pa_mrc_GetTdScdmaBandCapabilities
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetPacketSwitchedState
 (
-    le_mrc_ServiceState_t* statePtr
-        ///< [OUT] The current Packet switched state.
+    le_mrc_NetRegState_t* statePtr  ///< [OUT] The current Packet switched state.
 )
 {
     LE_WARN("Unsupported function called");
     return LE_FAULT;
 }
 
-//--------------------------------------------------------------------------------------------------
-/**
- * Get the Circuit Switched state.
- *
- * @return
- *  - LE_FAULT  Function failed.
- *  - LE_OK     Function succeeded.
- *
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_mrc_GetCircuitSwitchedState
-(
-    le_mrc_ServiceState_t* statePtr
-        ///< [OUT] The current Circuit switched state.
-)
-{
-    LE_WARN("Unsupported function called");
-    return LE_FAULT;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to register a handler for Circuit Switched change handling.
- *
- * @return A handler reference, which is only needed for later removal of the handler.
- *
- * @note Doesn't return on failure, so there's no need to check the return value for errors.
- */
-//--------------------------------------------------------------------------------------------------
-le_event_HandlerRef_t pa_mrc_SetCSChangeHandler
-(
-    pa_mrc_ServiceChangeHdlrFunc_t handlerFuncPtr ///< [IN] The handler function.
-)
-{
-    LE_WARN("Unsupported function called");
-    return NULL;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This function must be called to unregister the handler for Circuit Switched change
- * handling.
- *
- */
-//--------------------------------------------------------------------------------------------------
-void pa_mrc_RemoveCSChangeHandler
-(
-    le_event_HandlerRef_t handlerRef
-)
-{
-    LE_WARN("Unsupported function called");
-}
 
 //--------------------------------------------------------------------------------------------------
 /**
