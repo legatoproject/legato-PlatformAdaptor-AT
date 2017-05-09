@@ -92,6 +92,56 @@ le_result_t pa_GetVoltageThresholds
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Get the Platform power source.
+ *
+ * @return
+ *      - LE_OK             The function succeeded.
+ *      - LE_BAD_PARAMETER  Null pointer provided as a parameter.
+ *      - LE_FAULT          The function failed to get the value.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_ips_GetPowerSource
+(
+    le_ips_PowerSource_t* powerSourcePtr    ///< [OUT] The power source.
+)
+{
+    if (!powerSourcePtr)
+    {
+        LE_ERROR("powerSourcePtr is NULL!");
+        return LE_BAD_PARAMETER;
+    }
+
+    // Note: this information could be retrieved with the first parameter of AT+CBC
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get the Platform battery level in percent.
+ *
+ * @return
+ *      - LE_OK             The function succeeded.
+ *      - LE_BAD_PARAMETER  Null pointer provided as a parameter.
+ *      - LE_FAULT          The function failed to get the value.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_ips_GetBatteryLevel
+(
+    uint8_t* batteryLevelPtr    ///< [OUT] The battery level in percent.
+)
+{
+    if (!batteryLevelPtr)
+    {
+        LE_ERROR("batteryLevelPtr is NULL!");
+        return LE_BAD_PARAMETER;
+    }
+
+    // Note: this information could be retrieved with the second parameter of AT+CBC
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * This function must be called to initialize the PA Input Power Supply module.
  *
  * @return
