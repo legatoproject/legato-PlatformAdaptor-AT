@@ -698,7 +698,7 @@ static le_result_t pa_sim_GetRemainingAttempts
 
 //--------------------------------------------------------------------------------------------------
 /**
- * This function get the remaining attempts of a pin code.
+ * This function get the remaining attempts of a PIN code.
  *
  * @return LE_BAD_PARAMETER The parameters are invalid.
  * @return LE_FAULT         The function failed.
@@ -708,15 +708,15 @@ static le_result_t pa_sim_GetRemainingAttempts
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_GetPINRemainingAttempts
 (
-    pa_sim_PinType_t type,      ///< [IN] The pin type
+    pa_sim_PinType_t type,         ///< [IN] The PIN type
     uint32_t*        attemptsPtr   ///< [OUT] The number of attempts still possible
 )
 {
-    if      (type==PA_SIM_PIN)
+    if (PA_SIM_PIN == type)
     {
         return pa_sim_GetRemainingAttempts(0,attemptsPtr);
     }
-    else if (type==PA_SIM_PIN2)
+    else if (PA_SIM_PIN2 == type)
     {
         return pa_sim_GetRemainingAttempts(1,attemptsPtr);
     }
@@ -728,7 +728,7 @@ le_result_t pa_sim_GetPINRemainingAttempts
 
 //--------------------------------------------------------------------------------------------------
 /**
- * This function get the remaining attempts of a puk code.
+ * This function get the remaining attempts of a PUK code.
  *
  * @return LE_BAD_PARAMETER The parameters are invalid.
  * @return LE_FAULT         The function failed.
@@ -738,15 +738,15 @@ le_result_t pa_sim_GetPINRemainingAttempts
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_GetPUKRemainingAttempts
 (
-    pa_sim_PukType_t type,      ///< [IN] The puk type
+    pa_sim_PukType_t type,         ///< [IN] The PUK type
     uint32_t*        attemptsPtr   ///< [OUT] The number of attempts still possible
 )
 {
-    if      (type==PA_SIM_PUK)
+    if (PA_SIM_PUK == type)
     {
         return pa_sim_GetRemainingAttempts(2,attemptsPtr);
     }
-    else if (type==PA_SIM_PUK2)
+    else if (PA_SIM_PUK2 == type)
     {
         return pa_sim_GetRemainingAttempts(3,attemptsPtr);
     }
