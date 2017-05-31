@@ -2,6 +2,8 @@
 # Copyright (C) Sierra Wireless Inc.
 #*******************************************************************************
 
+message("My change")
+
 # Tests
 enable_testing()
 
