@@ -381,6 +381,7 @@ le_result_t pa_gnss_SetSuplServerUrl
  *
  * @return
  *  - LE_OK on success
+ *  - LE_BAD_PARAMETER on invalid parameter
  *  - LE_FAULT on failure
  *  - LE_BUSY service is busy
  *  - LE_TIMEOUT a time-out occurred
@@ -403,6 +404,7 @@ le_result_t pa_gnss_InjectSuplCertificate
  *
  * @return
  *  - LE_OK on success
+ *  - LE_BAD_PARAMETER on invalid parameter
  *  - LE_FAULT on failure
  *  - LE_BUSY service is busy
  *  - LE_TIMEOUT a time-out occurred
