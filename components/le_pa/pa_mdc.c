@@ -1361,6 +1361,40 @@ le_result_t pa_mdc_ResetDataFlowStatistics
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Stop collecting data flow statistics
+ *
+ * * @return
+ *      - LE_OK on success
+ *      - LE_FAULT for all other errors
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_mdc_StopDataFlowStatistics
+(
+    void
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Start collecting data flow statistics
+ *
+ * * @return
+ *      - LE_OK on success
+ *      - LE_FAULT for all other errors
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_mdc_StartDataFlowStatistics
+(
+    void
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Map a profile on a network interface
  *
  * * @return
