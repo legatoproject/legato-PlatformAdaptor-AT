@@ -1165,8 +1165,9 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
  * Set the Radio Access Technology Preferences
  *
  * @return
- * - LE_OK              on success
- * - LE_FAULT           on failure
+ * - LE_OK              On success
+ * - LE_FAULT           On failure
+ * - LE_UNSUPPORTED     Not supported by platform
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_SetRatPreferences
