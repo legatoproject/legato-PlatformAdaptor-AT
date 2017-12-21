@@ -1257,3 +1257,26 @@ le_result_t pa_sim_ReadFPLMNOperators
 {
     return LE_UNSUPPORTED;
 }
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Retrieve the last SIM Toolkit status.
+ *
+ * @return
+ *      - LE_OK             On success.
+ *      - LE_BAD_PARAMETER  A parameter is invalid.
+ *      - LE_UNSUPPORTED    The platform does not support this operation.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_sim_GetLastStkStatus
+(
+    pa_sim_StkEvent_t*  stkStatus  ///< [OUT] last SIM Toolkit event status
+)
+{
+    if (NULL == stkStatus)
+    {
+        return LE_BAD_PARAMETER;
+    }
+
+    return LE_UNSUPPORTED;
+}
