@@ -589,19 +589,20 @@ le_result_t pa_sms_SetMsgFormat
 /**
  * This function sends a message in PDU mode.
  *
+ * @return LE_OK              The function succeeded.
  * @return LE_FAULT           The function failed to send a message in PDU mode.
  * @return LE_BAD_PARAMETER   The parameters are invalid.
  * @return LE_TIMEOUT         No response was received from the Modem.
- * @return a positive value   The function succeeded. The value represents the message reference.
  */
 //--------------------------------------------------------------------------------------------------
-int32_t pa_sms_SendPduMsg
+le_result_t pa_sms_SendPduMsg
 (
     pa_sms_Protocol_t        protocol,   ///< [IN] protocol to use
     uint32_t                 length,     ///< [IN] The length of the TP data unit in bytes.
-    const uint8_t           *dataPtr,    ///< [IN] The message.
+    const uint8_t*           dataPtr,    ///< [IN] The message.
+    uint8_t*                 msgRef,     ///< [OUT] Message reference (TP-MR)
     uint32_t                 timeout,    ///< [IN] Timeout in seconds.
-    pa_sms_SendingErrCode_t *errorCode   ///< [OUT] The error code.
+    pa_sms_SendingErrCode_t* errorCode   ///< [OUT] The error code.
 )
 {
     char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
@@ -610,7 +611,7 @@ int32_t pa_sms_SendPduMsg
     char                 hexString[LE_SMS_PDU_MAX_BYTES*2+1] = {0};
     uint32_t             hexStringSize;
     le_atClient_CmdRef_t cmdRef = NULL;
-    int32_t              res    = LE_FAULT;
+    le_result_t          res    = LE_FAULT;
 
     if (!dataPtr)
     {
@@ -697,11 +698,12 @@ int32_t pa_sms_SendPduMsg
 
         uint32_t numParam = pa_utils_CountAndIsolateLineParameters(intermediateResponse);
 
-        if (FIND_STRING("+CMGS:",pa_utils_IsolateLineParameter(intermediateResponse,1)))
+        if (FIND_STRING("+CMGS:", pa_utils_IsolateLineParameter(intermediateResponse, 1)))
         {
             if (numParam == 2)
             {
-                res = atoi(pa_utils_IsolateLineParameter(intermediateResponse,2));
+                *msgRef = atoi(pa_utils_IsolateLineParameter(intermediateResponse, 2));
+                 res = LE_OK;
             }
             else
             {
