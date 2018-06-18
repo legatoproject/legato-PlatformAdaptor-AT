@@ -992,7 +992,7 @@ le_result_t pa_mdc_GetIPAddress
     {
         le_atClient_CmdRef_t cmdRef   = NULL;
         char*                tokenPtr = NULL;
-        char*                savePtr  = NULL;
+        char*                savePtr;
         char                 intermediate[LE_ATDEFS_RESPONSE_MAX_BYTES];
         char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
         char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];

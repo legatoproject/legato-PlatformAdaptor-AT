@@ -950,7 +950,7 @@ le_result_t pa_sim_GetHomeNetworkOperator
     le_result_t          res      = LE_OK;
     le_atClient_CmdRef_t cmdRef   = NULL;
     char*                tokenPtr = NULL;
-    char*                savePtr  = NULL;
+    char*                savePtr;
     char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 

@@ -236,7 +236,7 @@ static le_result_t GetNetworkReg
     le_atClient_CmdRef_t cmdRef   = NULL;
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
-    char*                savePtr  = NULL;
+    char*                savePtr;
     char intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     char finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
