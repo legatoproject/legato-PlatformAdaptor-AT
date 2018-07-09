@@ -1412,3 +1412,19 @@ le_result_t pa_mdc_MapProfileOnNetworkInterface
 {
     return LE_UNSUPPORTED;
 }
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get the connection failure reason for IPv4v6 mode
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+void pa_mdc_GetConnectionFailureReasonExt
+(
+    uint32_t profileIndex,                            ///< [IN] The profile to use
+    le_mdc_Pdp_t pdp,                                 ///< [IN] The failure reason pdp type
+    pa_mdc_ConnectionFailureCode_t** failureCodesPtr  ///< [OUT] The specific Failure Reason codes
+)
+{
+    *failureCodesPtr = NULL;
+}
