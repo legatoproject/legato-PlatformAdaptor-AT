@@ -479,6 +479,31 @@ le_result_t pa_gnss_GetNmeaSentences
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * This function gets leap seconds information
+ *
+ * @return
+ *  - LE_OK           The function successed
+ *  - LE_FAULT        The function failed
+ *  - LE_TIMEOUT      The function timeout
+ *  - LE_UNSUPPORTED  Not supported on this platform
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetLeapSeconds
+(
+    uint64_t* gpsTimePtr,              ///< [OUT] The number of milliseconds of GPS time since
+                                       ///<       Jan. 6, 1980
+    int32_t* currentLeapSecondsPtr,    ///< [OUT] Current UTC leap seconds value in milliseconds
+    uint64_t* changeEventTimePtr,      ///< [OUT] The number of milliseconds since Jan. 6, 1980
+                                       ///<       to the next leap seconds change event
+    int32_t* nextLeapSecondsPtr        ///< [OUT] UTC leap seconds value to be applied at the
+                                       ///<       change event time in milliseconds
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Component initializer called automatically by the Legato application framework.
  * This is not used because we want to make sure that GNSS is available before initializing
  * the platform adapter.
