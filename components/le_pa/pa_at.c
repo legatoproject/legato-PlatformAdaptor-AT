@@ -67,7 +67,10 @@ static const char PppPortPath[] = "/dev/ttyACM4";
  * @return LE_OK            The function succeeded.
  */
 //--------------------------------------------------------------------------------------------------
-static le_result_t  EnableCmee()
+static le_result_t  EnableCmee
+(
+    void
+)
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
