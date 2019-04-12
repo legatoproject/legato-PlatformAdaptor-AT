@@ -7,6 +7,7 @@
 
 #include "legato.h"
 #include "interfaces.h"
+#include "pa.h"
 #include "pa_utils_local.h"
 #include "pa_at_local.h"
 
@@ -24,35 +25,38 @@
 #include "pa_temp.h"
 #include "pa_antenna.h"
 #include "pa_adc_local.h"
+
+#ifdef LE_CONFIG_POSIX
 #include <termios.h>
+#endif
 
 //--------------------------------------------------------------------------------------------------
 /**
  * Device reference used for sending AT commands
  */
 //--------------------------------------------------------------------------------------------------
-le_atClient_DeviceRef_t AtDeviceRef = NULL;
+static le_atClient_DeviceRef_t AtDeviceRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
  * Device reference used for PPP session
  */
 //--------------------------------------------------------------------------------------------------
-le_atClient_DeviceRef_t PppDeviceRef = NULL;
+static le_atClient_DeviceRef_t PppDeviceRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
  * Device path used for sending AT commands
  */
 //--------------------------------------------------------------------------------------------------
-const char AtPortPath[] = "/dev/ttyACM0";
+static const char AtPortPath[] = "/dev/ttyACM0";
 
 //--------------------------------------------------------------------------------------------------
 /**
  * Device path used for PPP session
  */
 //--------------------------------------------------------------------------------------------------
-const char PppPortPath[] = "/dev/ttyACM4";
+static const char PppPortPath[] = "/dev/ttyACM4";
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -232,11 +236,26 @@ static le_result_t SetDefaultConfig()
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * This is used to set the device reference of the AT port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+void __attribute__((weak)) pa_at_SetAtDeviceRef
+(
+    le_atClient_DeviceRef_t atDeviceRef
+)
+{
+    AtDeviceRef = atDeviceRef;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
  * This is used to get the device reference of the AT port.
  *
  **/
 //--------------------------------------------------------------------------------------------------
-le_atClient_DeviceRef_t pa_at_GetAtDeviceRef
+le_atClient_DeviceRef_t __attribute__((weak)) pa_at_GetAtDeviceRef
 (
     void
 )
@@ -264,7 +283,7 @@ le_atClient_DeviceRef_t pa_at_GetPppDeviceRef
  *
  **/
 //--------------------------------------------------------------------------------------------------
-char* pa_at_GetPppPath
+char* __attribute__((weak)) pa_at_GetPppPath
 (
     void
 )
@@ -283,6 +302,9 @@ static int OpenAndConfigurePort
     const char* portPath
 )
 {
+#ifndef LE_CONFIG_POSIX
+    return 0;
+#else
     int fd = open(portPath, O_RDWR | O_NOCTTY | O_NONBLOCK);
 
     if (fd < 0)
@@ -304,15 +326,19 @@ static int OpenAndConfigurePort
     tcflush(fd, TCIOFLUSH);
 
     return fd;
+#endif
 }
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Component initializer automatically called by the application framework when the process starts.
+ * This is used to init pa.
  *
  **/
 //--------------------------------------------------------------------------------------------------
-COMPONENT_INIT
+void __attribute__((weak)) pa_Init
+(
+    void
+)
 {
     int fd = OpenAndConfigurePort(AtPortPath);
 
@@ -362,4 +388,14 @@ COMPONENT_INIT
         pa_antenna_Init();
         pa_adc_Init();
     }
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Component initializer automatically called by the application framework when the process starts.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+COMPONENT_INIT
+{
 }

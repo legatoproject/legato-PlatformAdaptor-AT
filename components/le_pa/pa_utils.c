@@ -4,7 +4,10 @@
  */
 
 #include "legato.h"
+#include "interfaces.h"
+#include "pa_at_local.h"
 #include "pa_utils_local.h"
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -40,6 +43,122 @@ uint32_t pa_utils_CountAndIsolateLineParameters
     return 0;
 }
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to count the number of parameters in a line,
+ * between <separatorChar> and to set all <separatorChar> with '\0'.
+ *
+ * @return the number of parameters in the line
+ */
+//--------------------------------------------------------------------------------------------------
+uint32_t pa_utils_CountAndIsolateLineParametersWithChar
+(
+    char* linePtr,       ///< [IN/OUT] line to parse
+    char  separatorChar
+)
+{
+    uint32_t cpt = 1;
+    uint32_t lineSize = strlen(linePtr);
+
+    if (lineSize) {
+        while (lineSize)
+        {
+            if ( linePtr[lineSize] == separatorChar )
+            {
+                linePtr[lineSize] = '\0';
+                cpt++;
+            }
+            lineSize--;
+        }
+        return cpt;
+    }
+    return 0;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to count the number of COPS operators detected in a line,
+ * between '(' and ')' and to set all '(' and ')' char to '\0'
+ *
+ * @return the number of operators in the line
+ */
+//--------------------------------------------------------------------------------------------------
+uint32_t pa_utils_CountAndIsolateCopsParameters
+(
+    char* linePtr       ///< [IN/OUT] line to parse
+)
+{
+    uint32_t cpt = 0;
+    uint32_t lineSize = strnlen(linePtr, LE_ATDEFS_RESPONSE_MAX_BYTES);
+
+    if (lineSize)
+    {
+        while (lineSize)
+        {
+            if ((linePtr[lineSize] == '(') || (linePtr[lineSize] == ')' ))
+            {
+                linePtr[lineSize] = NULL_CHAR;
+                cpt++;
+            }
+            lineSize--;
+        }
+
+        if(cpt & 0x01)
+        {
+            LE_ERROR("Odd number of '(' ')' detected %" PRIu32 "!", cpt);
+            return 0;
+        }
+    }
+
+    cpt = cpt / 2;
+    return cpt;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to count the number of string occurence
+  *
+ * @return the number of operators in the line
+ */
+//--------------------------------------------------------------------------------------------------
+uint32_t pa_utils_CountStringParameters
+(
+    char* stringStr,       ///< [IN/OUT] line to parse
+    const char* tagStr     ///< [IN] string to count
+)
+{
+    int i = 0;
+    uint32_t cpt = 0;
+    uint32_t stringPtrLen = strnlen(stringStr, LE_ATDEFS_RESPONSE_MAX_BYTES);
+    uint32_t tagStrLen = strnlen(tagStr, LE_ATDEFS_RESPONSE_MAX_BYTES);
+    char * endStringPtr = stringStr + stringPtrLen + 1;
+    char * shearchPtr = stringStr;
+    char * newShearch;
+
+    if ((0 == stringPtrLen) || (0 == tagStrLen))
+    {
+        return LE_FAULT;
+    }
+
+    for (i=0 ; ((shearchPtr) && (shearchPtr <= endStringPtr)); i++)
+    {
+        newShearch = strstr(shearchPtr, tagStr);
+        if (newShearch && (newShearch != shearchPtr))
+        {
+            cpt++;
+        }
+        else
+        {
+            LE_DEBUG("Found nb %" PRIu32 " occurences", cpt);
+            return cpt;
+        }
+        shearchPtr = newShearch+1;
+    }
+
+    return cpt;
+}
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -64,3 +183,312 @@ char* pa_utils_IsolateLineParameter
 
     return pCurr;
 }
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to remove quotation at begining and ending in a string if present
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+void pa_utils_RemoveQuotationString
+(
+    char * stringToParsePtr   ///< [IN/OUT] String to remove quotation char if present.
+)
+{
+    if(stringToParsePtr)
+    {
+        // stringToParsePtr = "1234"\0
+        // stringlen = 6
+        int stringlen = strnlen(stringToParsePtr, LE_ATDEFS_RESPONSE_MAX_BYTES);
+        // Check minimum string len to have two quotations
+        if(stringlen >= 2)
+        {
+            if ('"' == stringToParsePtr[0])
+            {
+                strncpy(stringToParsePtr, stringToParsePtr+1, stringlen);
+                if ('"' == stringToParsePtr[stringlen-2])
+                {
+                    stringToParsePtr[stringlen-2] = NULL_CHAR;
+                    // stringToParsePtr = 1234\0\0\0
+                }
+            }
+        }
+    }
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to get an intermediate response string
+ *
+ * @return
+ *  - LE_FAULT  Function failed.
+ *  - LE_OK     Function succeeded.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t  pa_utils_GetATIntermediateResponse
+(
+    const char * cmdStr,        ///< [IN] AT command to send
+    const char * interStr,      ///< [IN] Intermediate response expected
+    char * responseStr,         ///< [OUT] Intermediate response
+    size_t responseSize         ///< [OUT] Buffer size > LE_ATDEFS_RESPONSE_MAX_BYTES
+)
+{
+    le_result_t             res;
+    le_atClient_CmdRef_t    cmdRef   = NULL;
+    char                    finalResponseStr[PA_AT_LOCAL_STRING_SIZE] = {0};
+
+    if(!cmdStr || !interStr || !responseStr)
+    {
+        LE_ERROR("Bad paramameters !!");
+        return LE_FAULT;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+        pa_at_GetAtDeviceRef(),
+        cmdStr,
+        interStr,
+        DEFAULT_AT_RESPONSE,
+        MAX_AT_CMD_TIMEOUT);
+
+    if (LE_OK != res)
+    {
+        LE_ERROR("Failed to send the command %s", cmdStr);
+        return LE_FAULT;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+        finalResponseStr,
+        sizeof(finalResponseStr));
+    if ((LE_OK != res) || (strcmp(finalResponseStr,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
+    }
+
+    responseStr[0] = NULL_CHAR;
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+        responseStr,
+        responseSize);
+
+    le_atClient_Delete(cmdRef);
+    return res;
+}
+
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to send AT command and check the OK AT response string.
+ *
+ * @return
+ *  - LE_FAULT  Function failed.
+ *  - LE_OK     Function succeeded.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t  pa_utils_SendATCommandOK
+(
+    const char * cmdStr        ///< [IN] AT command to send
+)
+{
+    le_result_t             res;
+    le_atClient_CmdRef_t    cmdRef   = NULL;
+    char                    finalResponseStr[PA_AT_LOCAL_STRING_SIZE] = {0};
+
+    if(!cmdStr)
+    {
+        LE_ERROR("Bad paramameters !!");
+        return LE_FAULT;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+        pa_at_GetAtDeviceRef(),
+        cmdStr,
+        DEFAULT_EMPTY_INTERMEDIATE,
+        DEFAULT_AT_RESPONSE,
+        MAX_AT_CMD_TIMEOUT);
+
+    if (LE_OK != res)
+    {
+        LE_ERROR("Failed to send the command");
+        return LE_FAULT;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+        finalResponseStr,
+        sizeof(finalResponseStr));
+
+    le_atClient_Delete(cmdRef);
+
+    if ((LE_OK != res) || (strcmp(finalResponseStr,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the OK");
+        return LE_FAULT;
+    }
+
+    return res;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function Convert Hexadecimal string to uint32_t type
+ *
+ * @return uint32_t value if Function succeeded,0 otherwize
+ */
+//--------------------------------------------------------------------------------------------------
+uint32_t pa_utils_ConvertHexStringToUInt32
+(
+    const char * hexStringPtr   ///< [IN] Hexadecimale string to convert
+)
+{
+    uint32_t valueUint32 = 0;
+
+    if(hexStringPtr)
+    {
+        long value = strtol(hexStringPtr, NULL, BASE_HEX);
+        if((value > 0) && (value < UINT32_MAX))
+        {
+            valueUint32 = value & UINT32_MAX;
+        }
+    }
+
+    return valueUint32;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function conerted the <Act> field in +CREG / +CEREG string (3GPP 27.007 release 12)
+ *  to le_mrc_Rat_t type
+ *
+ * @return LE_FAULT The function failed to conver the Radio Access Technology
+ * @return LE_OK    The function succeeded.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_utils_ConvertActToRat
+(
+    int  actValue,              ///< [IN] The Radio Access Technology <Act> in CREG/CEREG.
+    le_mrc_Rat_t*   ratPtr      ///< [OUT] The Radio Access Technology.
+)
+{
+    /*
+     * 3GPP 27.007 release 14
+     * <AcT> : integer type; access technology of the serving cell
+    0    GSM
+    1    GSM    Compact
+    2    UTRAN
+    3    GSM w/EGPRS
+    4    UTRAN w/HSDPA
+    5    UTRAN w/HSUPA
+    6    UTRAN w/HSDPA and HSUPA
+    7    E-UTRAN
+    8    EC-GSM-IoT (A/Gb mode)
+    9    E-UTRAN (NB-S1 mode)
+     */
+    switch(actValue)
+    {
+        case 0 :
+        case 1 :
+        case 3 :
+            *ratPtr = LE_MRC_RAT_GSM;
+            return LE_OK;
+
+        case 2 :
+        case 4 :
+        case 5 :
+        case 6 :
+            *ratPtr = LE_MRC_RAT_UMTS;
+            return LE_OK;
+
+        // NB1 network are considered as LTE network
+        case 9 :
+        case 7 :
+            *ratPtr = LE_MRC_RAT_LTE;
+            return LE_OK;
+
+        default :
+            LE_ERROR("Debug <Act> = %d", actValue);
+            *ratPtr = LE_MRC_RAT_UNKNOWN;
+            break;
+    }
+
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function remove space in the string
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+void pa_utils_RemoveSpaceInString
+(
+    char * stringStr
+)
+{
+    int i, cpt;
+    int len = strnlen(stringStr, LE_ATDEFS_RESPONSE_MAX_BYTES);
+    for(i=0, cpt=0; i<len; i++)
+    {
+        if( ' ' != stringStr[i] )
+        {
+            stringStr[cpt++] = stringStr[i];
+        }
+    }
+    stringStr[cpt] = NULL_CHAR;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to get the CMEE mode
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+int32_t  __attribute__((weak)) pa_utils_GetCmeeMode
+(
+    void
+)
+{
+    int32_t cmeeMode = 0;
+    char localBuffStr[PA_AT_LOCAL_SHORT_SIZE] = {0};
+    // AT+CMEE?
+    // +CMEE: 1
+    // OK
+
+    if( LE_OK == pa_utils_GetATIntermediateResponse("AT+CMEE?", "+CMEE",
+        localBuffStr, sizeof(localBuffStr)))
+    {
+        LE_INFO("res %s", localBuffStr);
+        cmeeMode = atoi(localBuffStr+strlen("+CMEE: "));
+        if((cmeeMode < 0) || (cmeeMode > 2))
+        {
+            cmeeMode = 0;
+        }
+    }
+
+    return cmeeMode;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to set the CMEE mode
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+void  __attribute__((weak)) pa_utils_SetCmeeMode
+(
+    int32_t cmeeMode
+)
+{
+    char localBuffStr[PA_AT_LOCAL_SHORT_SIZE];
+    snprintf(localBuffStr, sizeof(localBuffStr), "AT+CMEE=%" PRIi32, cmeeMode);
+
+    pa_utils_GetATIntermediateResponse(localBuffStr, DEFAULT_EMPTY_INTERMEDIATE,
+        localBuffStr, sizeof(localBuffStr));
+}
+
