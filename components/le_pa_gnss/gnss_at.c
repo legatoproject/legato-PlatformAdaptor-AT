@@ -273,15 +273,33 @@ le_result_t pa_gnss_InjectUtcTime
 
 //--------------------------------------------------------------------------------------------------
 /**
- * This function must be called to restart the GNSS device.
+ * This function delete GNSS assistance data for warm/cold/factory start
  *
- * @return LE_FAULT         The function failed.
- * @return LE_OK            The function succeeded.
+ * @return LE_FAULT           The function failed.
+ * @return LE_OK              The function succeeded.
+ * @return LE_UNSUPPORTED     Restart type not supported.
+ * @return LE_BAD_PARAMETER   Bad input parameter.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_gnss_ForceRestart
+le_result_t pa_gnss_DeleteAssistData
 (
-    pa_gnss_Restart_t  restartType ///< [IN] type of restart
+    le_gnss_StartMode_t mode    ///< [IN] Start mode
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to stop the GNSS engine.
+ *
+ * @return LE_FAULT  The function failed.
+ * @return LE_OK     The function succeed.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_ForceEngineStop
+(
+    void
 )
 {
     return LE_FAULT;
