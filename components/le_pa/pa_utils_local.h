@@ -44,7 +44,7 @@
  * Default Expected AT Command Response.
  */
 //--------------------------------------------------------------------------------------------------
-#define DEFAULT_AT_RESPONSE             "OK|ERROR|+CME ERROR:"
+#define DEFAULT_AT_RESPONSE             "OK|ERROR|+CME ERROR:|+CMS ERROR:"
 
 //--------------------------------------------------------------------------------------------------
 /**
