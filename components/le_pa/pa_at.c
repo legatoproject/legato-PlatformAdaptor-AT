@@ -32,20 +32,6 @@
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Device reference used for sending AT commands
- */
-//--------------------------------------------------------------------------------------------------
-static le_atClient_DeviceRef_t AtDeviceRef = NULL;
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Device reference used for PPP session
- */
-//--------------------------------------------------------------------------------------------------
-static le_atClient_DeviceRef_t PppDeviceRef = NULL;
-
-//--------------------------------------------------------------------------------------------------
-/**
  * Device path used for sending AT commands
  */
 //--------------------------------------------------------------------------------------------------
@@ -76,7 +62,7 @@ static le_result_t  EnableCmee
     le_result_t          res    = LE_FAULT;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CMEE=1",
                                         "\0",
                                         DEFAULT_AT_RESPONSE,
@@ -104,7 +90,7 @@ static le_result_t  DisableEcho()
     le_result_t          res    = LE_FAULT;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "ATE0",
                                         "\0",
                                         DEFAULT_AT_RESPONSE,
@@ -132,7 +118,7 @@ static le_result_t  SaveSettings()
     le_result_t          res    = LE_FAULT;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT&W",
                                         "\0",
                                         DEFAULT_AT_RESPONSE,
@@ -236,50 +222,6 @@ static le_result_t SetDefaultConfig()
     return LE_OK;
 }
 
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This is used to set the device reference of the AT port.
- *
- **/
-//--------------------------------------------------------------------------------------------------
-void __attribute__((weak)) pa_at_SetAtDeviceRef
-(
-    le_atClient_DeviceRef_t atDeviceRef
-)
-{
-    AtDeviceRef = atDeviceRef;
-}
-
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This is used to get the device reference of the AT port.
- *
- **/
-//--------------------------------------------------------------------------------------------------
-le_atClient_DeviceRef_t __attribute__((weak)) pa_at_GetAtDeviceRef
-(
-    void
-)
-{
-    return AtDeviceRef;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This is used to get the device reference of the PPP port.
- *
- **/
-//--------------------------------------------------------------------------------------------------
-le_atClient_DeviceRef_t pa_at_GetPppDeviceRef
-(
-    void
-)
-{
-    return PppDeviceRef;
-}
-
 //--------------------------------------------------------------------------------------------------
 /**
  * This is used to get the path of the PPP port.
@@ -343,7 +285,9 @@ void __attribute__((weak)) pa_Init
     void
 )
 {
-    int fd = OpenAndConfigurePort(AtPortPath);
+    le_atClient_DeviceRef_t atDeviceRef;
+    le_atClient_DeviceRef_t pppDeviceRef;
+    int                     fd = OpenAndConfigurePort(AtPortPath);
 
     if (fd < 0)
     {
@@ -351,13 +295,14 @@ void __attribute__((weak)) pa_Init
         return;
     }
 
-    AtDeviceRef = le_atClient_Start(fd);
+    atDeviceRef = le_atClient_Start(fd);
 
-    if (AtDeviceRef == NULL)
+    if (atDeviceRef == NULL)
     {
         LE_ERROR("Can't start %s, fd = %d", AtPortPath, fd);
         return;
     }
+    pa_utils_SetAtDeviceRef(atDeviceRef);
 
     fd = OpenAndConfigurePort(PppPortPath);
 
@@ -367,13 +312,14 @@ void __attribute__((weak)) pa_Init
         return;
     }
 
-    PppDeviceRef = le_atClient_Start(fd);
+    pppDeviceRef = le_atClient_Start(fd);
 
-    if (PppDeviceRef == NULL)
+    if (pppDeviceRef == NULL)
     {
         LE_ERROR("Can't start %s, fd = %d", AtPortPath, fd);
         return;
     }
+    pa_utils_SetPppDeviceRef(pppDeviceRef);
 
     if (SetDefaultConfig() != LE_OK)
     {

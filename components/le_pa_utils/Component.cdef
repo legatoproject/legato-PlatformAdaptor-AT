@@ -1,0 +1,12 @@
+requires:
+{
+    api:
+    {
+        le_atClient.api
+    }
+}
+
+sources:
+{
+    pa_utils.c
+}

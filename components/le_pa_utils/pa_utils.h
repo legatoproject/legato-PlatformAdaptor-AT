@@ -1,10 +1,10 @@
-/** @file pa_utils_local.h
+/** @file pa_utils.h
  *
  * Copyright (C) Sierra Wireless Inc.
  */
 
-#ifndef LEGATO_PAUTILSLOCAL_INCLUDE_GUARD
-#define LEGATO_PAUTILSLOCAL_INCLUDE_GUARD
+#ifndef LEGATO_PAUTILS_INCLUDE_GUARD
+#define LEGATO_PAUTILS_INCLUDE_GUARD
 
 
 //--------------------------------------------------------------------------------------------------
@@ -58,14 +58,14 @@
  * Define NULL char
  */
 //--------------------------------------------------------------------------------------------------
-#define NULL_CHAR           '\0'
+#define NULL_CHAR                       '\0'
 
 //--------------------------------------------------------------------------------------------------
 /**
  * Define Hexadecimale base
  */
 //--------------------------------------------------------------------------------------------------
-#define BASE_HEX            16
+#define BASE_HEX                        16
 
 
 //--------------------------------------------------------------------------------------------------
@@ -73,16 +73,44 @@
  * Define decimal base
  */
 //--------------------------------------------------------------------------------------------------
-#define BASE_DEC            10
+#define BASE_DEC                        10
 
 //--------------------------------------------------------------------------------------------------
 /**
  * Define range decimal value
  */
 //--------------------------------------------------------------------------------------------------
-#define MIN_VALUE_RANGE     -2000
-#define MAX_VALUE_RANGE     2000
+#define MIN_VALUE_RANGE                 -2000
+#define MAX_VALUE_RANGE                 2000
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Define PA AT command padding size
+ */
+//--------------------------------------------------------------------------------------------------
+#define PA_AT_COMMAND_PADDING           6
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Define PA local string size
+ */
+//--------------------------------------------------------------------------------------------------
+#define PA_AT_LOCAL_STRING_SIZE         100
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Define PA at local long string size
+ */
+//--------------------------------------------------------------------------------------------------
+#define PA_AT_LOCAL_LONG_STRING_SIZE    200
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Define PA MRC local string size
+ */
+//--------------------------------------------------------------------------------------------------
+#define PA_AT_LOCAL_SHORT_SIZE          50
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -152,22 +180,6 @@ LE_SHARED le_result_t pa_utils_GetATIntermediateResponse
 LE_SHARED uint32_t pa_utils_ConvertHexStringToUInt32
 (
     const char * hexStringPtr   ///< [IN] Hexadecimale string to convert
-);
-
-
-//--------------------------------------------------------------------------------------------------
-/**
- * This function conerted the <Act> field in +CREG / +CEREG string (3GPP 27.007 release 12)
- *  to le_mrc_Rat_t type
- *
- * @return LE_FAULT The function failed to conver the Radio Access Technology
- * @return LE_OK    The function succeeded.
- */
-//--------------------------------------------------------------------------------------------------
-LE_SHARED le_result_t pa_utils_ConvertActToRat
-(
-    int  actValue,              ///< [IN] The Radio Access Technology <Act> in CREG/CEREG.
-    le_mrc_Rat_t*   ratPtr      ///< [OUT] The Radio Access Technology.
 );
 
 
@@ -260,4 +272,48 @@ LE_SHARED le_result_t  pa_utils_SendATCommandOK
     const char * cmdStr        ///< [IN] AT command to send
 );
 
-#endif // LEGATO_PAUTILSLOCAL_INCLUDE_GUARD
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to get the device reference of the AT port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+LE_SHARED le_atClient_DeviceRef_t pa_utils_GetAtDeviceRef
+(
+    void
+);
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to get the device reference of the PPP port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+LE_SHARED le_atClient_DeviceRef_t pa_utils_GetPppDeviceRef
+(
+    void
+);
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to set the device reference of the AT port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+LE_SHARED void pa_utils_SetAtDeviceRef
+(
+    le_atClient_DeviceRef_t atDeviceRef
+);
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to set the device reference of the PPP port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+void pa_utils_SetPppDeviceRef
+(
+    le_atClient_DeviceRef_t pppDeviceRef
+);
+
+#endif // LEGATO_PAUTILS_INCLUDE_GUARD

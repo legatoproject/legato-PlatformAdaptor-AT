@@ -5,9 +5,21 @@
 
 #include "legato.h"
 #include "interfaces.h"
-#include "pa_at_local.h"
-#include "pa_utils_local.h"
+#include "pa_utils.h"
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Device reference used for sending AT commands
+ */
+//--------------------------------------------------------------------------------------------------
+static le_atClient_DeviceRef_t AtDeviceRef = NULL;
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Device reference used for PPP session
+ */
+//--------------------------------------------------------------------------------------------------
+static le_atClient_DeviceRef_t PppDeviceRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -246,7 +258,7 @@ le_result_t  pa_utils_GetATIntermediateResponse
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-        pa_at_GetAtDeviceRef(),
+        pa_utils_GetAtDeviceRef(),
         cmdStr,
         interStr,
         DEFAULT_AT_RESPONSE,
@@ -304,7 +316,7 @@ le_result_t  pa_utils_SendATCommandOK
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-        pa_at_GetAtDeviceRef(),
+        pa_utils_GetAtDeviceRef(),
         cmdStr,
         DEFAULT_EMPTY_INTERMEDIATE,
         DEFAULT_AT_RESPONSE,
@@ -361,65 +373,6 @@ uint32_t pa_utils_ConvertHexStringToUInt32
 
 //--------------------------------------------------------------------------------------------------
 /**
- * This function conerted the <Act> field in +CREG / +CEREG string (3GPP 27.007 release 12)
- *  to le_mrc_Rat_t type
- *
- * @return LE_FAULT The function failed to conver the Radio Access Technology
- * @return LE_OK    The function succeeded.
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_utils_ConvertActToRat
-(
-    int  actValue,              ///< [IN] The Radio Access Technology <Act> in CREG/CEREG.
-    le_mrc_Rat_t*   ratPtr      ///< [OUT] The Radio Access Technology.
-)
-{
-    /*
-     * 3GPP 27.007 release 14
-     * <AcT> : integer type; access technology of the serving cell
-    0    GSM
-    1    GSM    Compact
-    2    UTRAN
-    3    GSM w/EGPRS
-    4    UTRAN w/HSDPA
-    5    UTRAN w/HSUPA
-    6    UTRAN w/HSDPA and HSUPA
-    7    E-UTRAN
-    8    EC-GSM-IoT (A/Gb mode)
-    9    E-UTRAN (NB-S1 mode)
-     */
-    switch(actValue)
-    {
-        case 0 :
-        case 1 :
-        case 3 :
-            *ratPtr = LE_MRC_RAT_GSM;
-            return LE_OK;
-
-        case 2 :
-        case 4 :
-        case 5 :
-        case 6 :
-            *ratPtr = LE_MRC_RAT_UMTS;
-            return LE_OK;
-
-        // NB1 network are considered as LTE network
-        case 9 :
-        case 7 :
-            *ratPtr = LE_MRC_RAT_LTE;
-            return LE_OK;
-
-        default :
-            LE_ERROR("Debug <Act> = %d", actValue);
-            *ratPtr = LE_MRC_RAT_UNKNOWN;
-            break;
-    }
-
-    return LE_FAULT;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
  * This function remove space in the string
  *
  */
@@ -448,7 +401,7 @@ void pa_utils_RemoveSpaceInString
  *
  */
 //--------------------------------------------------------------------------------------------------
-int32_t  __attribute__((weak)) pa_utils_GetCmeeMode
+int32_t pa_utils_GetCmeeMode
 (
     void
 )
@@ -473,14 +426,13 @@ int32_t  __attribute__((weak)) pa_utils_GetCmeeMode
     return cmeeMode;
 }
 
-
 //--------------------------------------------------------------------------------------------------
 /**
  * This function must be called to set the CMEE mode
  *
  */
 //--------------------------------------------------------------------------------------------------
-void  __attribute__((weak)) pa_utils_SetCmeeMode
+void pa_utils_SetCmeeMode
 (
     int32_t cmeeMode
 )
@@ -492,3 +444,64 @@ void  __attribute__((weak)) pa_utils_SetCmeeMode
         localBuffStr, sizeof(localBuffStr));
 }
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to set the device reference of the AT port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+void pa_utils_SetAtDeviceRef
+(
+    le_atClient_DeviceRef_t atDeviceRef
+)
+{
+    AtDeviceRef = atDeviceRef;
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to get the device reference of the AT port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+le_atClient_DeviceRef_t pa_utils_GetAtDeviceRef
+(
+    void
+)
+{
+    return AtDeviceRef;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to set the device reference of the PPP port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+void pa_utils_SetPppDeviceRef
+(
+    le_atClient_DeviceRef_t pppDeviceRef
+)
+{
+    PppDeviceRef = pppDeviceRef;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to get the device reference of the PPP port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+le_atClient_DeviceRef_t pa_utils_GetPppDeviceRef
+(
+    void
+)
+{
+    return PppDeviceRef;
+}
+
+COMPONENT_INIT
+{
+    // Do nothing.
+}
