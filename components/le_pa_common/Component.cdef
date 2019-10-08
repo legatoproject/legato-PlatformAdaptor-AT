@@ -21,26 +21,19 @@ requires:
     component:
     {
         $CURDIR/../le_pa_utils
-        $CURDIR/../le_pa_common
     }
 }
 
 sources:
 {
-    pa_at.c
+    pa_at_common.c
     pa_info.c
-    pa_mcc.c
+    pa_ips.c
     pa_mdc.c
     pa_mrc.c
     pa_sim.c
-    pa_sms.c
-    pa_ecall.c
-    pa_temp.c
-    pa_antenna.c
-    pa_adc.c
-    pa_rtc.c
-    pa_lpt.c
-    pa_riPin.c
+    pa_mdc_utils.c
+    pa_sim_utils.c
 }
 
 cflags:
@@ -52,4 +45,3 @@ cflags:
     -I$CURDIR/../le_pa_utils
     -I$LEGATO_ROOT/interfaces/modemServices
 }
-

@@ -39,6 +39,13 @@ le_atClient_UnsolicitedResponseHandlerRef_t UnsolCdsiRef = NULL;
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Define static SMS memory pool
+ */
+//--------------------------------------------------------------------------------------------------
+LE_MEM_DEFINE_STATIC_POOL(SmsPoolRef,DEFAULT_SMS_POOL_SIZE,sizeof(uint32_t));
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Sms memory pool
  */
 //--------------------------------------------------------------------------------------------------
@@ -184,8 +191,7 @@ le_result_t pa_sms_Init
 {
     NewSmsEventId = le_event_CreateId("NewSmsEventId",sizeof(pa_sms_NewMessageIndication_t));
 
-    SmsPoolRef = le_mem_CreatePool("SmsPoolRef",sizeof(uint32_t));
-    SmsPoolRef = le_mem_ExpandPool(SmsPoolRef,DEFAULT_SMS_POOL_SIZE);
+    SmsPoolRef = le_mem_InitStaticPool(SmsPoolRef,DEFAULT_SMS_POOL_SIZE,sizeof(uint32_t));
 
     SmsHandlerRef = NULL;
 
@@ -201,7 +207,7 @@ le_result_t pa_sms_Init
  * @return LE_OK            The function succeeded.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_sms_SetNewMsgHandler
+le_result_t __attribute__((weak)) pa_sms_SetNewMsgHandler
 (
     pa_sms_NewMsgHdlrFunc_t msgHandler ///< [IN] The handler function to handle a new message reception.
 )
@@ -235,7 +241,7 @@ le_result_t pa_sms_SetNewMsgHandler
  * @return LE_OK            The function succeeded.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_sms_ClearNewMsgHandler
+le_result_t __attribute__((weak)) pa_sms_ClearNewMsgHandler
 (
     void
 )
@@ -482,7 +488,7 @@ le_result_t pa_sms_GetNewMsgIndic
     char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
-    if (!modePtr && !mtPtr && !bmPtr && !dsPtr && !bfrPtr)
+    if (!modePtr || !mtPtr || !bmPtr || !dsPtr || !bfrPtr)
     {
         LE_WARN("One parameter is NULL");
         return LE_BAD_PARAMETER;
@@ -521,20 +527,61 @@ le_result_t pa_sms_GetNewMsgIndic
     else
     {
         tokenPtr = strtok_r(intermediateResponse+strlen("+CNMI: "), ",", &savePtr);
-        *modePtr = (pa_sms_NmiMode_t)atoi(tokenPtr);
+        if (tokenPtr)
+        {
+            *modePtr = (pa_sms_NmiMode_t)atoi(tokenPtr);
+        }
+        else
+        {
+            res = LE_FAULT;
+            goto end;
+        }
 
         tokenPtr = strtok_r(NULL, ",", &savePtr);
-        *mtPtr   = (pa_sms_NmiMt_t)  atoi(tokenPtr);
+        if (tokenPtr)
+        {
+            *mtPtr   = (pa_sms_NmiMt_t)  atoi(tokenPtr);
+        }
+        else
+        {
+            res = LE_FAULT;
+            goto end;
+        }
 
         tokenPtr = strtok_r(NULL, ",", &savePtr);
-        *bmPtr   = (pa_sms_NmiBm_t)  atoi(tokenPtr);
+        if (tokenPtr)
+        {
+            *bmPtr   = (pa_sms_NmiBm_t)  atoi(tokenPtr);
+        }
+        else
+        {
+            res = LE_FAULT;
+            goto end;
+        }
 
         tokenPtr = strtok_r(NULL, ",", &savePtr);
-        *dsPtr   = (pa_sms_NmiDs_t)  atoi(tokenPtr);
+        if (tokenPtr)
+        {
+            *dsPtr   = (pa_sms_NmiDs_t)  atoi(tokenPtr);
+        }
+        else
+        {
+            res = LE_FAULT;
+            goto end;
+        }
 
         tokenPtr = strtok_r(NULL, ",", &savePtr);
-        *bfrPtr  = (pa_sms_NmiBfr_t) atoi(tokenPtr);
+        if (tokenPtr)
+        {
+            *bfrPtr  = (pa_sms_NmiBfr_t) atoi(tokenPtr);
+        }
+        else
+        {
+            res = LE_FAULT;
+        }
     }
+
+end:
     le_atClient_Delete(cmdRef);
     return res;
 }
@@ -558,7 +605,7 @@ le_result_t pa_sms_SetMsgFormat
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGF=%d",format);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGF=%d",(int)format);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),
@@ -619,7 +666,7 @@ le_result_t pa_sms_SendPduMsg
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGS=%d",length-1);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGS=%"PRIu32,length-1);
 
     hexStringSize = le_hex_BinaryToString(dataPtr,length,hexString,sizeof(hexString));
     LE_INFO("Pdu string: %s, size = %d", hexString, hexStringSize);
@@ -753,7 +800,7 @@ le_result_t pa_sms_RdPDUMsgFromMem
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGR=%d",index);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGR=%"PRIu32,index);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),
@@ -789,6 +836,12 @@ le_result_t pa_sms_RdPDUMsgFromMem
     else
     {
         tokenPtr = strtok(intermediateResponse+strlen("+CMGR: "), ",");
+        if (tokenPtr == NULL)
+        {
+            LE_ERROR("Failed to get CGMR res");
+            le_atClient_Delete(cmdRef);
+            return LE_FAULT;
+        }
         msgPtr->status=(le_sms_Status_t)atoi(tokenPtr);
         msgPtr->protocol = PA_SMS_PROTOCOL_GSM;
     }
@@ -855,7 +908,7 @@ le_result_t pa_sms_ListMsgFromMem
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
     uint32_t             cpt = 0;
 
-    if (!numPtr && !idxPtr)
+    if (!numPtr || !idxPtr)
     {
         LE_WARN("One parameter is NULL");
         return LE_BAD_PARAMETER;
@@ -911,10 +964,12 @@ le_result_t pa_sms_ListMsgFromMem
     while(res == LE_OK)
     {
         tokenPtr = strtok(intermediateResponse+strlen("+CMGL: "), ",");
-        idxPtr[cpt] = atoi(tokenPtr);
-        (*numPtr)++;
-        cpt += 1;
-
+        if (tokenPtr)
+        {
+            idxPtr[cpt] = atoi(tokenPtr);
+            (*numPtr)++;
+            cpt += 1;
+        }
         res = le_atClient_GetNextIntermediateResponse(cmdRef,
                                                     intermediateResponse,
                                                     LE_ATDEFS_RESPONSE_MAX_BYTES);
@@ -954,7 +1009,7 @@ le_result_t pa_sms_DelMsgFromMem
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGD=%d,0",index);
+    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGD=%"PRIu32",0",index);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),

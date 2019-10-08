@@ -1,5 +1,5 @@
 /**
- * @file pa_riPin_simu.c
+ * @file pa_riPin.c
  *
  * AT implementation of PA Ring Indicator signal.
  *
@@ -33,6 +33,23 @@ le_result_t pa_riPin_Init
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Platform specific initialization of the pulse ring signal thread
+ *
+ * @return
+ *   - LE_FAULT         The function failed.
+ *   - LE_OK            The function succeeded.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_riPin_RingSignalThreadInit
+(
+    void
+)
+{
+    return LE_OK;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Check whether the application core is the current owner of the Ring Indicator signal.
  *
  * @return
@@ -48,7 +65,8 @@ le_result_t pa_riPin_AmIOwnerOfRingSignal
                       ///        false when modem core is the owner of the Ring Indicator signal
 )
 {
-    return LE_FAULT;
+    *amIOwnerPtr = true;
+    return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -66,7 +84,7 @@ le_result_t pa_riPin_TakeRingSignal
     void
 )
 {
-    return LE_FAULT;
+    return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -84,7 +102,7 @@ le_result_t pa_riPin_ReleaseRingSignal
     void
 )
 {
-    return LE_FAULT;
+    return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------

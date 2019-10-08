@@ -9,8 +9,6 @@
 #include "interfaces.h"
 #include "pa.h"
 #include "pa_utils.h"
-
-#include "pa_at_local.h"
 #include "pa_mrc.h"
 #include "pa_mrc_local.h"
 #include "pa_sms.h"
@@ -228,7 +226,7 @@ static le_result_t SetDefaultConfig()
  *
  **/
 //--------------------------------------------------------------------------------------------------
-char* __attribute__((weak)) pa_at_GetPppPath
+char* __attribute__((weak)) pa_utils_GetPppPath
 (
     void
 )

@@ -21,7 +21,7 @@
  *      - LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-LE_SHARED le_result_t pa_adc_ReadValue
+LE_SHARED le_result_t __attribute__((weak)) pa_adc_ReadValue
 (
     const char* adcNamePtr,     ///< [IN] Name of the ADC to read
     int32_t*    adcValuePtr     ///< [OUT] The adc value

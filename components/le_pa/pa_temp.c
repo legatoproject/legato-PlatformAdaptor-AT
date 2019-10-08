@@ -23,7 +23,7 @@
  *      - LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_Request
+le_result_t __attribute__((weak)) pa_temp_Request
 (
     const char*         sensorPtr,  ///< [IN] Name of the temperature sensor.
     le_temp_Handle_t    leHandle,   ///< [IN] Sensor context in LE side, opaque type in PA side
@@ -42,7 +42,7 @@ le_result_t pa_temp_Request
  *      - LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_GetHandle
+le_result_t __attribute__((weak)) pa_temp_GetHandle
 (
     const char*         sensorPtr,  ///< [IN] Name of the temperature sensor.
     le_temp_Handle_t*   leHandlePtr ///< [OUT] Sensor context in LE side, opaque type in PA side
@@ -61,7 +61,7 @@ le_result_t pa_temp_GetHandle
  *      - LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_GetSensorName
+le_result_t __attribute__((weak)) pa_temp_GetSensorName
 (
     pa_temp_Handle_t    paHandle, ///< [IN] Handle of the temperature sensor.
     char*               namePtr,  ///< [OUT] Name of the temperature sensor.
@@ -80,7 +80,7 @@ le_result_t pa_temp_GetSensorName
  *      - LE_FAULT         The function failed to get the temperature.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_GetTemperature
+le_result_t __attribute__((weak)) pa_temp_GetTemperature
 (
     pa_temp_Handle_t    paHandle,      ///< [IN] Handle of the temperature sensor.
     int32_t*            temperaturePtr ///< [OUT] Temperature in degree Celsius.
@@ -99,7 +99,7 @@ le_result_t pa_temp_GetTemperature
  *      - LE_FAULT         The function failed to set the thresholds.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_SetThreshold
+le_result_t __attribute__((weak)) pa_temp_SetThreshold
 (
     pa_temp_Handle_t    paHandle,      ///< [IN] Handle of the temperature sensor.
     const char*         thresholdPtr,  ///< [IN] Name of the threshold.
@@ -118,7 +118,7 @@ le_result_t pa_temp_SetThreshold
  *      - LE_FAULT         The function failed to get the thresholds.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_GetThreshold
+le_result_t __attribute__((weak)) pa_temp_GetThreshold
 (
     pa_temp_Handle_t    paHandle,      ///< [IN] Handle of the temperature sensor.
     const char*         thresholdPtr,  ///< [IN] Name of the threshold.
@@ -138,7 +138,7 @@ le_result_t pa_temp_GetThreshold
  *      - LE_FAULT         The function failed to apply the thresholds.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_StartMonitoring
+le_result_t __attribute__((weak)) pa_temp_StartMonitoring
 (
     void
 )
@@ -153,7 +153,7 @@ le_result_t pa_temp_StartMonitoring
  * @return A handler reference, which is only needed for later removal of the handler.
  */
 //--------------------------------------------------------------------------------------------------
-le_event_HandlerRef_t* pa_temp_AddTempEventHandler
+le_event_HandlerRef_t* __attribute__((weak)) pa_temp_AddTempEventHandler
 (
     pa_temp_ThresholdHandlerFunc_t  handlerFunc, ///< [IN] The handler function.
     void*                           contextPtr   ///< [IN] The context to be given to the handler.
@@ -172,7 +172,7 @@ le_event_HandlerRef_t* pa_temp_AddTempEventHandler
  *      - LE_UNSUPPORTED   The function does not support this operation.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_ResetHandle
+le_result_t __attribute__((weak)) pa_temp_ResetHandle
 (
     const char*         sensorPtr  ///< [IN] Name of the temperature sensor.
 )
@@ -189,7 +189,7 @@ le_result_t pa_temp_ResetHandle
  * - LE_FAULT if unsuccessful.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_temp_Init
+le_result_t __attribute__((weak)) pa_temp_Init
 (
     void
 )

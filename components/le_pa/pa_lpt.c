@@ -19,7 +19,7 @@
  * @note Doesn't return on failure, so there's no need to check the return value for errors.
  */
 //--------------------------------------------------------------------------------------------------
-le_event_HandlerRef_t pa_lpt_AddEDrxParamsChangeHandler
+le_event_HandlerRef_t __attribute__((weak)) pa_lpt_AddEDrxParamsChangeHandler
 (
     pa_lpt_EDrxParamsChangeIndHandlerFunc_t handlerFuncPtr  ///< [IN] The handler function.
 )
@@ -38,7 +38,7 @@ le_event_HandlerRef_t pa_lpt_AddEDrxParamsChangeHandler
  *  - LE_FAULT          The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_lpt_SetEDrxState
+le_result_t __attribute__((weak)) pa_lpt_SetEDrxState
 (
     le_lpt_EDrxRat_t    eDrxRat,    ///< [IN] Radio Access Technology.
     le_onoff_t          activation  ///< [IN] eDRX activation state.
@@ -58,7 +58,7 @@ le_result_t pa_lpt_SetEDrxState
  *  - LE_FAULT          The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_lpt_SetRequestedEDrxValue
+le_result_t __attribute__((weak)) pa_lpt_SetRequestedEDrxValue
 (
     le_lpt_EDrxRat_t    eDrxRat,    ///< [IN] Radio Access Technology.
     uint8_t             eDrxValue   ///< [IN] Requested eDRX cycle value.
@@ -78,7 +78,7 @@ le_result_t pa_lpt_SetRequestedEDrxValue
  *  - LE_FAULT          The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_lpt_GetRequestedEDrxValue
+le_result_t __attribute__((weak)) pa_lpt_GetRequestedEDrxValue
 (
     le_lpt_EDrxRat_t    eDrxRat,        ///< [IN] Radio Access Technology.
     uint8_t*            eDrxValuePtr    ///< [OUT] Requested eDRX cycle value
@@ -99,7 +99,7 @@ le_result_t pa_lpt_GetRequestedEDrxValue
  *  - LE_FAULT          The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_lpt_GetNetworkProvidedEDrxValue
+le_result_t __attribute__((weak)) pa_lpt_GetNetworkProvidedEDrxValue
 (
     le_lpt_EDrxRat_t    eDrxRat,        ///< [IN]  Radio Access Technology.
     uint8_t*            eDrxValuePtr    ///< [OUT] Network-provided eDRX cycle value.
@@ -120,7 +120,7 @@ le_result_t pa_lpt_GetNetworkProvidedEDrxValue
  *  - LE_FAULT          The function failed.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_lpt_GetNetworkProvidedPagingTimeWindow
+le_result_t __attribute__((weak)) pa_lpt_GetNetworkProvidedPagingTimeWindow
 (
     le_lpt_EDrxRat_t    eDrxRat,            ///< [IN]  Radio Access Technology.
     uint8_t*            pagingTimeWindowPtr ///< [OUT] Network-provided Paging Time Window.
@@ -138,7 +138,7 @@ le_result_t pa_lpt_GetNetworkProvidedPagingTimeWindow
  *  - LE_FAULT         The function failed to initialize the module.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_lpt_Init
+le_result_t __attribute__((weak)) pa_lpt_Init
 (
     void
 )

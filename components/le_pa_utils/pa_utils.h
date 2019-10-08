@@ -316,4 +316,15 @@ LE_SHARED void pa_utils_SetPppDeviceRef
     le_atClient_DeviceRef_t pppDeviceRef
 );
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * This is used to get the path of the PPP port.
+ *
+ **/
+//--------------------------------------------------------------------------------------------------
+LE_SHARED char* pa_utils_GetPppPath
+(
+    void
+);
+
 #endif // LEGATO_PAUTILS_INCLUDE_GUARD

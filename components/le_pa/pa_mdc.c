@@ -11,9 +11,10 @@
 
 #include "pa_mdc.h"
 #include "pa_utils.h"
-#include "pa_at_local.h"
+#include "pa_mdc_local.h"
+#include "pa_mdc_utils_local.h"
 
-
+#if LE_CONFIG_LINUX
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <stdio.h>
@@ -21,7 +22,9 @@
 #include <arpa/nameser.h>
 #include <arpa/inet.h>
 #include <resolv.h>
+#endif
 
+#include <sys/wait.h>
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -36,7 +39,14 @@ static le_event_Id_t CallEventId;
  * Define an invalid profile index. Since profile indices start at 1, 0 is an invalid index.
  */
 //--------------------------------------------------------------------------------------------------
-#define INVALID_PROFILE_INDEX 0
+#define INVALID_PROFILE_INDEX       0
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Define a static pool for session state.
+ */
+//--------------------------------------------------------------------------------------------------
+LE_MEM_DEFINE_STATIC_POOL(SessionStatePool, 1, sizeof(pa_mdc_SessionStateData_t));
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -64,7 +74,7 @@ static uint32_t CurrentDataSessionIndex=INVALID_PROFILE_INDEX;
  * Unsolicited references
  */
 //--------------------------------------------------------------------------------------------------
-le_atClient_UnsolicitedResponseHandlerRef_t UnsolCgevRef = NULL;
+static le_atClient_UnsolicitedResponseHandlerRef_t UnsolCgevRef = NULL;
 
 
 //--------------------------------------------------------------------------------------------------
@@ -79,6 +89,7 @@ static pthread_mutex_t Mutex = PTHREAD_MUTEX_INITIALIZER;   // POSIX "Fast" mute
 
 /// Unlocks the mutex.
 #define UNLOCK  LE_ASSERT(pthread_mutex_unlock(&Mutex) == 0)
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -112,37 +123,6 @@ static inline void SetCurrentDataSessionIndex(uint32_t index)
     UNLOCK;
 }
 
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Attach or detach the GPRS service
- *
- * @return LE_OK            GPRS is attached
- * @return LE_FAULT         modem could not attach the GPRS
- */
-//--------------------------------------------------------------------------------------------------
-static le_result_t AttachGPRS
-(
-    bool toAttach   ///< [IN] boolean value
-)
-{
-    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
-    le_atClient_CmdRef_t cmdRef = NULL;
-    le_result_t          res    = LE_FAULT;
-
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGATT=%d",toAttach);
-
-    res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_utils_GetAtDeviceRef(),
-                                        command,
-                                        "",
-                                        DEFAULT_AT_RESPONSE,
-                                        DEFAULT_AT_CMD_TIMEOUT);
-
-    le_atClient_Delete(cmdRef);
-    return res;
-}
-
 //--------------------------------------------------------------------------------------------------
 /**
  * Activate or Desactivate the profile regarding toActivate value
@@ -153,24 +133,41 @@ static le_result_t AttachGPRS
 //--------------------------------------------------------------------------------------------------
 static le_result_t ActivateContext
 (
-    uint32_t profileIndex,    ///< [IN] The profile to read
-    bool     toActivate       ///< [IN] activation boolean
+    uint32_t profileIndex,      ///< [IN] The profile to read
+    bool     toActivate         ///< [IN] activation boolean
 )
 {
-    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
+    char                 responseStr[PA_AT_LOCAL_STRING_SIZE];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
 
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGACT=%d,%d",toActivate,profileIndex);
+    snprintf(responseStr,PA_AT_LOCAL_STRING_SIZE,"AT+CGACT=%d,%d",
+        (toActivate ? 1 : 0), (int) profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),
-                                        command,
-                                        "",
+                                        responseStr,
+                                        DEFAULT_EMPTY_INTERMEDIATE,
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
 
+    if (LE_OK != res)
+    {
+        return LE_FAULT;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       responseStr,
+                                       sizeof(responseStr));
+
     le_atClient_Delete(cmdRef);
+
+    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    {
+        LE_ERROR("Failed to get the final response : %s", responseStr);
+        return LE_FAULT;
+    }
+
     return res;
 }
 
@@ -204,7 +201,7 @@ static void CGEVUnsolHandler
 
             SetCurrentDataSessionIndex(INVALID_PROFILE_INDEX);
 
-            LE_DEBUG("Send Event for %d with state %d",
+            LE_DEBUG("Send Event for %" PRIu32 " with state %d",
                      sessionStatePtr->profileIndex,
                      sessionStatePtr->newState);
             le_event_ReportWithRefCounting(SessionStateEventId,sessionStatePtr);
@@ -230,18 +227,20 @@ static le_result_t SetIndicationHandler
     uint32_t  mode  ///< Unsolicited result mode
 )
 {
-    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
+    static const char       cgerepStr[]="AT+CGEREP=";
+    char                    commandStr[sizeof(cgerepStr)+PA_AT_COMMAND_PADDING];
 
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGEREP=%d",mode);
+    snprintf(commandStr,sizeof(commandStr),"%s%"PRIu32, cgerepStr, mode);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),
-                                        command,
-                                        "",
+                                        commandStr,
+                                        DEFAULT_EMPTY_INTERMEDIATE,
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
+
     if (res == LE_OK)
     {
         if (mode)
@@ -279,8 +278,7 @@ static le_result_t StartPDPConnection
 {
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_FAULT;
-    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES] ;
-    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 cmdResponseStr[PA_AT_LOCAL_SHORT_SIZE];
 
     if (!profileIndex)
     {
@@ -288,7 +286,7 @@ static le_result_t StartPDPConnection
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"ATD*99***%d#",profileIndex);
+    snprintf(cmdResponseStr, sizeof(cmdResponseStr), "ATD*99***%"PRIu32"#", profileIndex);
 
     cmdRef = le_atClient_Create();
     LE_DEBUG("New command ref (%p) created",cmdRef);
@@ -296,7 +294,7 @@ static le_result_t StartPDPConnection
     {
         return res;
     }
-    res = le_atClient_SetCommand(cmdRef,command);
+    res = le_atClient_SetCommand(cmdRef, cmdResponseStr);
     if (res != LE_OK)
     {
         le_atClient_Delete(cmdRef);
@@ -327,10 +325,10 @@ static le_result_t StartPDPConnection
     else
     {
         res = le_atClient_GetFinalResponse(cmdRef,
-                                        finalResponse,
-                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
+                                           cmdResponseStr,
+                                           sizeof(cmdResponseStr));
 
-        if ((res != LE_OK) || (strcmp(finalResponse,"CONNECT") != 0))
+        if ((res != LE_OK) || (strcmp(cmdResponseStr,"CONNECT") != 0))
         {
             LE_ERROR("Failed to establish the connection");
         }
@@ -362,7 +360,7 @@ static le_result_t StopPDPConnection
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),
                                         "ATGH",
-                                        "",
+                                        DEFAULT_EMPTY_INTERMEDIATE,
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
 
@@ -395,7 +393,7 @@ static le_result_t StartPPPInterface
             "noauth",
             "nolock",
             "debug",
-            pa_at_GetPppPath(),
+            pa_utils_GetPppPath(),
             "115200",
             "defaultroute",
             "noipdefault",
@@ -520,23 +518,46 @@ le_result_t pa_mdc_Init
 )
 {
     SessionStateEventId = le_event_CreateIdWithRefCounting("SessionStateEventId");
-    SessionStatePool = le_mem_CreatePool("SessionStatePool", sizeof(pa_mdc_SessionStateData_t));
+    SessionStatePool = le_mem_InitStaticPool(SessionStatePool,
+                                             1,
+                                             sizeof(pa_mdc_SessionStateData_t));
     CallEventId = le_event_CreateId("CallEventId",LE_ATDEFS_RESPONSE_MAX_BYTES);
     le_event_AddHandler("PppCallHandler",CallEventId,PppCallHandler);
 
     // set unsolicited +CGEV to Register our own handler.
     SetIndicationHandler(2);
 
+    for(int i=1; i<= PA_MDC_MAX_PROFILE; i++)
+    {
+        pa_mdc_local_SetCidFromProfileIndex(i,i);
+    }
+
     return LE_OK;
 }
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Get the index of the default profile (link to the platform)
+ * This function must be called from each thread to connect PA MDC services.
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+void pa_mdc_AsyncInit
+(
+    void
+)
+{
+    le_atClient_TryConnectService();
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get the index (CID) of the default profile (link to the platform)
  *
  * @return
  *      - LE_OK on success
  *      - LE_FAULT on failure
+ *      - LE_BAD_PARAMETER on a null profileIndexPtr
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_GetDefaultProfileIndex
@@ -544,25 +565,13 @@ le_result_t pa_mdc_GetDefaultProfileIndex
     uint32_t* profileIndexPtr
 )
 {
-   *profileIndexPtr = 1;
-    return LE_OK;
-}
+    if (NULL == profileIndexPtr)
+    {
+        LE_ERROR("profileIndexPtr is NULL");
+        return LE_BAD_PARAMETER;
+    }
 
-//--------------------------------------------------------------------------------------------------
-/**
- * Get the index of the default profile for Bearer Independent Protocol (link to the platform)
- *
- * @return
- *      - LE_OK on success
- *      - LE_FAULT on failure
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_mdc_GetBipDefaultProfileIndex
-(
-    uint32_t* profileIndexPtr   ///< [OUT] index of the profile.
-)
-{
-   *profileIndexPtr = 2;
+    *profileIndexPtr = 1;
     return LE_OK;
 }
 
@@ -581,7 +590,7 @@ le_result_t pa_mdc_ReadProfile
     pa_mdc_ProfileData_t* profileDataPtr    ///< [OUT] The profile data
 )
 {
-    le_result_t          res    = LE_FAULT;
+    le_result_t res = LE_FAULT;
 
     if (!profileIndex)
     {
@@ -643,19 +652,17 @@ le_result_t pa_mdc_WriteProfile
     pa_mdc_ProfileData_t* profileDataPtr    ///< [IN] The profile data
 )
 {
-    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
+    char                 commandStr[PA_AT_LOCAL_LONG_STRING_SIZE];
     le_result_t          res    = LE_FAULT;
     le_atClient_CmdRef_t cmdRef = NULL;
 
-    snprintf(command,
-             LE_ATDEFS_COMMAND_MAX_BYTES,
-             "AT+CGQREQ=%d,0,0,0,0,0",
-             profileIndex);
+    snprintf(commandStr, PA_AT_LOCAL_LONG_STRING_SIZE,
+        "AT+CGQREQ=%"PRIu32",0,0,0,0,0",  profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),
-                                        command,
-                                        "",
+                                        commandStr,
+                                        DEFAULT_EMPTY_INTERMEDIATE,
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
     if (res == LE_OK)
@@ -663,16 +670,13 @@ le_result_t pa_mdc_WriteProfile
         le_atClient_Delete(cmdRef);
     }
 
-
-    snprintf(command,
-             LE_ATDEFS_COMMAND_MAX_BYTES,
-             "AT+CGQMIN=%d,0,0,0,0,0",
-             profileIndex);
+    snprintf(commandStr, PA_AT_LOCAL_LONG_STRING_SIZE,
+             "AT+CGQMIN=%"PRIu32",0,0,0,0,0", profileIndex);
     cmdRef = NULL;
     res    = le_atClient_SetCommandAndSend(&cmdRef,
                                            pa_utils_GetAtDeviceRef(),
-                                           command,
-                                           "",
+                                           commandStr,
+                                           DEFAULT_EMPTY_INTERMEDIATE,
                                            DEFAULT_AT_RESPONSE,
                                            DEFAULT_AT_CMD_TIMEOUT);
     if (res == LE_OK)
@@ -681,17 +685,13 @@ le_result_t pa_mdc_WriteProfile
     }
 
 
-    snprintf(command,
-             LE_ATDEFS_COMMAND_MAX_BYTES,
-             "AT+CGDCONT=%d,\"%s\",\"%s\"",
-             profileIndex,
-             "IP",
-             profileDataPtr->apn);
+    snprintf(commandStr, PA_AT_LOCAL_LONG_STRING_SIZE,
+             "AT+CGDCONT=%"PRIu32",\"%s\",\"%s\"", profileIndex, "IP", profileDataPtr->apn);
     cmdRef = NULL;
     res    = le_atClient_SetCommandAndSend(&cmdRef,
                                            pa_utils_GetAtDeviceRef(),
-                                           command,
-                                           "",
+                                           commandStr,
+                                           DEFAULT_EMPTY_INTERMEDIATE,
                                            DEFAULT_AT_RESPONSE,
                                            DEFAULT_AT_CMD_TIMEOUT);
     if (res != LE_OK)
@@ -711,7 +711,7 @@ le_result_t pa_mdc_WriteProfile
  *
  */
 //--------------------------------------------------------------------------------------------------
-void pa_mdc_GetConnectionFailureReason
+void  pa_mdc_GetConnectionFailureReason
 (
     uint32_t profileIndex,              ///< [IN] The profile to use
     pa_mdc_ConnectionFailureCode_t** failureCodesPtr  ///< [OUT] The specific Failure Reason codes
@@ -746,7 +746,7 @@ le_result_t pa_mdc_StartSessionIPV4
     // Always executed because:
     //   - if GPRS is already attached it doesn't do anything and then it returns OK
     //   - if GPRS is not attached it will attach it and then it returns OK on success
-    if (AttachGPRS(true) != LE_OK)
+    if (pa_mdc_utils_AttachPS(true) != LE_OK)
     {
         return LE_FAULT;
     }
@@ -808,27 +808,6 @@ le_result_t pa_mdc_StartSessionIPV4V6
 {
     return LE_FAULT;
 }
-
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Get session type for the given profile (IPV4 or IPV6)
- *
- * @return
- *      - LE_OK on success
- *      - LE_FAULT for other failures
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_mdc_GetSessionType
-(
-    uint32_t              profileIndex,     ///< [IN] The profile to use
-    pa_mdc_SessionType_t* sessionIpPtr      ///< [OUT] IP family session
-)
-{
-    *sessionIpPtr = PA_MDC_SESSION_IPV4;
-    return LE_OK;
-}
-
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -901,7 +880,7 @@ le_result_t pa_mdc_GetSessionState
  *      The process exits on failure
  */
 //--------------------------------------------------------------------------------------------------
-le_event_HandlerRef_t pa_mdc_AddSessionStateHandler
+le_event_HandlerRef_t  pa_mdc_AddSessionStateHandler
 (
     pa_mdc_SessionStateHandler_t handlerRef, ///< [IN] The session state handler function.
     void*                        contextPtr  ///< [IN] The context to be given to the handler.
@@ -985,101 +964,16 @@ le_result_t pa_mdc_GetIPAddress
     size_t                 ipAddrStrSize       ///< [IN] The size in bytes of the address buffer
 )
 {
-    le_result_t res = LE_FAULT;
-
-    if(ipVersion != LE_MDMDEFS_IPV4)
-    {
-        LE_ERROR("Only IPv4 is supported");
-    }
-    else
-    {
-        le_atClient_CmdRef_t cmdRef   = NULL;
-        char*                tokenPtr = NULL;
-        char*                savePtr;
-        char                 intermediate[LE_ATDEFS_RESPONSE_MAX_BYTES];
-        char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
-        char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
-
-        if (!profileIndex)
-        {
-            LE_DEBUG("One parameter is NULL");
-            return LE_BAD_PARAMETER;
-        }
-
-        snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
-
-        res = le_atClient_SetCommandAndSend(&cmdRef,
-                                            pa_utils_GetAtDeviceRef(),
-                                            "AT+CGDCONT?",
-                                            intermediate,
-                                            DEFAULT_AT_RESPONSE,
-                                            DEFAULT_AT_CMD_TIMEOUT);
-        if (res != LE_OK)
-        {
-            LE_ERROR("Failed to send the command");
-            return res;
-        }
-
-        res = le_atClient_GetFinalResponse(cmdRef,
-                                        finalResponse,
-                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
-
-        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
-        {
-            LE_ERROR("Failed to get the final response");
-            le_atClient_Delete(cmdRef);
-            return res;
-        }
-
-        res = le_atClient_GetFirstIntermediateResponse(cmdRef,
-                                                    intermediateResponse,
-                                                    LE_ATDEFS_RESPONSE_MAX_BYTES);
-        if (res != LE_OK)
-        {
-            LE_ERROR("Failed to get the intermediate response");
-        }
-        else
-        {
-            tokenPtr = strtok_r(intermediateResponse, "\"", &savePtr);
-            int cpt;
-            for (cpt = 0; cpt < 5; cpt++)
-            {
-                tokenPtr = strtok_r(NULL, "\"", &savePtr);
-            }
-            strncpy(ipAddrStr, tokenPtr, ipAddrStrSize);
-        }
-        le_atClient_Delete(cmdRef);
-    }
-    return res;
-}
-
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Get the gateway IP address for the given profile, if the data session is connected.
- *
- * @return
- *      - LE_OK on success
- *      - LE_OVERFLOW if the IP address would not fit in gatewayAddrStr
- *      - LE_FAULT for all other errors
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_mdc_GetGatewayAddress
-(
-    uint32_t                profileIndex,      ///< [IN]  The profile to use
-    le_mdmDefs_IpVersion_t  ipVersion,         ///< [IN]  IP Version
-    char*                   gatewayAddrStr,    ///< [OUT] The gateway IP address in dotted format
-    size_t                  gatewayAddrStrSize ///< [IN]  The size in bytes of the address buffer
-)
-{
     le_atClient_CmdRef_t cmdRef   = NULL;
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 command[LE_ATDEFS_COMMAND_MAX_BYTES] ;
-    char                 intermediate[LE_ATDEFS_RESPONSE_MAX_BYTES];
-    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
-    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+
+    static const char    cgpaddrStr[]="AT+CGPADDR=";
+    char                 commandStr[sizeof(cgpaddrStr)+PA_AT_COMMAND_PADDING];
+    char                 responseStr[PA_AT_LOCAL_LONG_STRING_SIZE];
+    char                 ipAddr1Str[PA_AT_LOCAL_STRING_SIZE] = {0};
+    char                 ipAddr2Str[PA_AT_LOCAL_STRING_SIZE] = {0};
 
     if (!profileIndex)
     {
@@ -1087,66 +981,86 @@ le_result_t pa_mdc_GetGatewayAddress
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGPADDR=%d",profileIndex);
-    snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGPADDR: %d,",profileIndex);
+    // 3GPP 27.007
+    // AT+CGPADDR
+    // +CGPADDR: 1,"10.29.164.168","254.128.0.0.0.0.0.0.90.159.101.12.150.163.37.78"
+    snprintf(commandStr, sizeof(commandStr),"%s%"PRIu32, cgpaddrStr, profileIndex);
+    snprintf(responseStr, sizeof(responseStr),"+CGPADDR: %"PRIu32",", profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),
-                                        command,
-                                        intermediate,
+                                        commandStr,
+                                        responseStr,
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
+
     if (res != LE_OK)
     {
         LE_ERROR("Failed to send the command");
         return res;
     }
 
+    responseStr[0] = NULL_CHAR;
     res = le_atClient_GetFinalResponse(cmdRef,
-                                       finalResponse,
-                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
+                                       responseStr,
+                                       sizeof(responseStr));
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
     {
         LE_ERROR("Failed to get the final response");
         le_atClient_Delete(cmdRef);
-        return res;
+        return LE_FAULT;
     }
 
+    responseStr[0] = NULL_CHAR;
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
-                                                   intermediateResponse,
-                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
+                                                   responseStr,
+                                                   sizeof(responseStr));
+
+    le_atClient_Delete(cmdRef);
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the intermediate response");
+        return LE_FAULT;
+    }
+
+    tokenPtr = strtok_r(responseStr, "\"", &savePtr);
+    if(tokenPtr)
+    {
+        tokenPtr = strtok_r(NULL, "\"", &savePtr);
+        if(tokenPtr)
+        {
+            strncpy(ipAddr1Str, tokenPtr, sizeof(ipAddr1Str));
+            tokenPtr = strtok_r(NULL, "\"", &savePtr);
+            if(tokenPtr)
+            {
+                tokenPtr = strtok_r(NULL, "\"", &savePtr);
+                if(tokenPtr)
+                {
+                    strncpy(ipAddr2Str, tokenPtr, sizeof(ipAddr2Str));
+                }
+            }
+        }
+    }
+
+    pa_utils_RemoveQuotationString(ipAddr1Str);
+    pa_utils_RemoveQuotationString(ipAddr2Str);
+
+    if(pa_mdc_util_CheckConvertIPAddressFormat(ipAddr1Str, ipVersion))
+    {
+        res = le_utf8_Copy(ipAddrStr, ipAddr1Str, ipAddrStrSize, NULL);
+    }
+    else if(pa_mdc_util_CheckConvertIPAddressFormat(ipAddr2Str, ipVersion))
+    {
+        res = le_utf8_Copy(ipAddrStr, ipAddr2Str, ipAddrStrSize, NULL);
     }
     else
     {
-        tokenPtr = strtok_r(intermediateResponse, "\"", &savePtr);
-        tokenPtr = strtok_r(NULL, "\"", &savePtr);
-        strncpy(gatewayAddrStr, tokenPtr, gatewayAddrStrSize);
+        LE_ERROR("No Ip address");
+        res = LE_FAULT;
     }
-    le_atClient_Delete(cmdRef);
+
     return res;
-}
-
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Reject a MT-PDP data session for the given profile
- *
- * @return
- *      - LE_OK on success
- *      - LE_BAD_PARAMETER if the input parameter is not valid
- *      - LE_FAULT for other failures
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_mdc_RejectMtPdpSession
-(
-    uint32_t profileIndex
-)
-{
-    return LE_FAULT;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1173,6 +1087,7 @@ le_result_t pa_mdc_GetDNSAddresses
     size_t                 dns2AddrStrSize  ///< [IN]  The size in bytes of the dns2AddrStr buffer
 )
 {
+#if LE_CONFIG_LINUX
     struct sockaddr_in addr;
     struct __res_state res;
     le_mdc_ConState_t  sessionState;
@@ -1224,7 +1139,7 @@ le_result_t pa_mdc_GetDNSAddresses
             return LE_FAULT;
         }
     }
-
+#endif
     return LE_OK;
 }
 
@@ -1250,9 +1165,7 @@ le_result_t pa_mdc_GetAccessPointName
     le_result_t          res      = LE_FAULT;
     char*                tokenPtr = NULL;
     char*                savePtr  = NULL;
-    char                 intermediate[LE_ATDEFS_RESPONSE_MAX_BYTES];
-    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
-    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 responseStr[PA_AT_LOCAL_LONG_STRING_SIZE] = {0};
 
     if (!profileIndex)
     {
@@ -1260,12 +1173,12 @@ le_result_t pa_mdc_GetAccessPointName
         return LE_BAD_PARAMETER;
     }
 
-    snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
+    snprintf(responseStr,PA_AT_LOCAL_LONG_STRING_SIZE,"+CGDCONT: %"PRIu32",", profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
                                         pa_utils_GetAtDeviceRef(),
                                         "AT+CGDCONT?",
-                                        intermediate,
+                                        responseStr,
                                         DEFAULT_AT_RESPONSE,
                                         DEFAULT_AT_CMD_TIMEOUT);
     if (res != LE_OK)
@@ -1274,35 +1187,61 @@ le_result_t pa_mdc_GetAccessPointName
         return res;
     }
 
+    responseStr[0] = NULL_CHAR;
     res = le_atClient_GetFinalResponse(cmdRef,
-                                       finalResponse,
-                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
+                                       responseStr,
+                                       sizeof(responseStr));
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
     {
         LE_ERROR("Failed to get the final response");
         le_atClient_Delete(cmdRef);
         return res;
     }
 
+    responseStr[0] = NULL_CHAR;
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
-                                                   intermediateResponse,
-                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
+                                                   responseStr,
+                                                   sizeof(responseStr));
+
+    le_atClient_Delete(cmdRef);
+
     if (res != LE_OK)
     {
         LE_ERROR("Failed to get the intermediate response");
     }
     else
     {
-        tokenPtr = strtok_r(intermediateResponse, "\"", &savePtr);
-        int cpt;
-        for (cpt = 0; cpt < 3; cpt++)
+        //  Look for APN string
+        //  AT+CGDCONT?
+        //  +CGDCONT: 1,"<pdp type>","<apn>",,0,0,0,0,0,,0)
+        //  +CGDCONT: 1,"IPV4V6",,,0,0,0,0,0,,0
+        //  +CGDCONT: 2,"IPV4V6","VZWADMIN",,0,0,0,0,0,,0
+        apnNameStr[0] = '\0';
+
+        //  Look for the first <">
+        tokenPtr = strtok_r(responseStr, "\"", &savePtr);
+        if(tokenPtr)
         {
-            tokenPtr = strtok_r(NULL, "\"", &savePtr);
+            LE_DEBUG("tokenPtr %s", tokenPtr);
+            int cpt;
+            for (cpt = 0; (cpt < 3) && tokenPtr; cpt++)
+            {
+                tokenPtr = strtok_r(NULL, "\"", &savePtr);
+                LE_DEBUG_IF(tokenPtr, "tokenPtr %d= %s", cpt, tokenPtr);
+            }
+            if (tokenPtr)
+            {
+                LE_DEBUG("tokenPtr %s", tokenPtr);
+                strncpy(apnNameStr, tokenPtr, apnNameStrSize);
+            }
+            else
+            {
+                LE_DEBUG("No APN Found on PDP context");
+            }
         }
-        strncpy(apnNameStr, tokenPtr, apnNameStrSize);
     }
-    le_atClient_Delete(cmdRef);
+
     return res;
 }
 
@@ -1398,22 +1337,18 @@ le_result_t pa_mdc_StartDataFlowStatistics
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Map a profile on a network interface
+ * Get the number of profiles on the modem.
  *
- * * @return
- *      - LE_OK on success
- *      - LE_UNSUPPORTED if not supported by the target
- *      - LE_FAULT for all other errors
- *
+ * @return
+ *      - number of profile existing on modem
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_mdc_MapProfileOnNetworkInterface
+uint32_t pa_mdc_GetNumProfiles
 (
-    uint32_t         profileIndex,         ///< [IN] The profile to use
-    const char*      interfaceNamePtr      ///< [IN] Network interface name
+    void
 )
 {
-    return LE_UNSUPPORTED;
+    return PA_MDC_MAX_PROFILE;
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -1430,23 +1365,4 @@ void pa_mdc_GetConnectionFailureReasonExt
 )
 {
     *failureCodesPtr = NULL;
-}
-
-//--------------------------------------------------------------------------------------------------
-/**
- * Get the list of all profiles
- *
- * @return
- *      - LE_OK on success
- *      - LE_FAULT on failure
- */
-//--------------------------------------------------------------------------------------------------
-le_result_t pa_mdc_GetProfileList
-(
-    le_mdc_ProfileInfo_t* profileList, ///< [OUT] list of available profiles
-    size_t* listSize                   ///< [INOUT] list size
-)
-{
-    LE_ERROR("Unsupported function called");
-    return LE_UNSUPPORTED;
 }

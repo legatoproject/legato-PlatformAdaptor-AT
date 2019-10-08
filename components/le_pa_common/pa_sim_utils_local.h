@@ -54,7 +54,7 @@ void pa_sim_utils_CheckCpinCode
  * @return false
  */
 //--------------------------------------------------------------------------------------------------
-bool pa_sim_utils_CheckStatus
+LE_SHARED bool pa_sim_utils_CheckStatus
 (
     const char*      lineStr,   ///< [IN] line to parse
     le_sim_States_t* statePtr   ///< [OUT] SIM state
