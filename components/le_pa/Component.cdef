@@ -22,7 +22,6 @@ requires:
 sources:
 {
     pa_at.c
-    pa_utils.c
     pa_sim_utils.c
     pa_info.c
     pa_mcc.c
