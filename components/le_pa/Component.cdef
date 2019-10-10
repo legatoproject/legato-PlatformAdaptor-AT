@@ -17,6 +17,11 @@ requires:
         le_lpt.api        [types-only]
         le_atClient.api
     }
+
+    component:
+    {
+        $CURDIR/../le_pa_utils
+    }
 }
 
 sources:
@@ -45,5 +50,6 @@ cflags:
     -I$LEGATO_ROOT/components/modemServices/platformAdaptor/inc
     -I$LEGATO_ROOT/components
     -I$LEGATO_ROOT/interfaces/atServices
+    -I$CURDIR/../le_pa_utils
 }
 

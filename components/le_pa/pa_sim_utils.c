@@ -8,7 +8,7 @@
 #include "legato.h"
 #include "interfaces.h"
 
-#include "pa_utils_local.h"
+#include "pa_utils.h"
 #include "pa_sim_utils_local.h"
 
 //--------------------------------------------------------------------------------------------------

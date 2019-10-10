@@ -8,8 +8,8 @@
 #include "legato.h"
 #include "interfaces.h"
 #include "pa_mrc.h"
-#include "pa_utils_local.h"
-#include "pa_at_local.h"
+#include "pa_utils.h"
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -160,7 +160,7 @@ static void SubscribeUnsolCreg
     if ((mode==PA_MRC_ENABLE_REG_NOTIFICATION) || (mode==PA_MRC_ENABLE_REG_LOC_NOTIFICATION))
     {
         UnsolCregRef = le_atClient_AddUnsolicitedResponseHandler(  "+CREG:",
-                                                                    pa_at_GetAtDeviceRef(),
+                                                                    pa_utils_GetAtDeviceRef(),
                                                                     CregUnsolHandler,
                                                                     NULL,
                                                                     1   );
@@ -187,7 +187,7 @@ static le_result_t SetOperatorTextMode
     if (text == true)
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
-                                            pa_at_GetAtDeviceRef(),
+                                            pa_utils_GetAtDeviceRef(),
                                             "AT+COPS=3,0",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -196,7 +196,7 @@ static le_result_t SetOperatorTextMode
     else
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
-                                            pa_at_GetAtDeviceRef(),
+                                            pa_utils_GetAtDeviceRef(),
                                             "AT+COPS=3,2",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -247,7 +247,7 @@ static le_result_t GetNetworkReg
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CREG?",
                                         "+CREG:",
                                         DEFAULT_AT_RESPONSE,
@@ -388,7 +388,7 @@ le_result_t pa_mrc_SetRadioPower
     }
 
     le_atClient_SetCommandAndSend(&cmdRef,
-                                  pa_at_GetAtDeviceRef(),
+                                  pa_utils_GetAtDeviceRef(),
                                   command,
                                   "",
                                   DEFAULT_AT_RESPONSE,
@@ -423,7 +423,7 @@ le_result_t pa_mrc_GetRadioPower
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CFUN?",
                                         "+CFUN:",
                                         DEFAULT_AT_RESPONSE,
@@ -564,7 +564,7 @@ le_result_t pa_mrc_ConfigureNetworkReg
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CREG=%d", setting);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -683,7 +683,7 @@ le_result_t pa_mrc_GetSignalStrength
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CSQ",
                                         "+CSQ:",
                                         DEFAULT_AT_RESPONSE,
@@ -781,7 +781,7 @@ le_result_t pa_mrc_GetCurrentNetwork
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+COPS?",
                                         "+COPS:",
                                         DEFAULT_AT_RESPONSE,
@@ -990,7 +990,7 @@ le_result_t pa_mrc_SetAutomaticNetworkRegistration
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CREG=1",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -1040,7 +1040,7 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CREG?",
                                         "+CREG:",
                                         DEFAULT_AT_RESPONSE,
@@ -1110,7 +1110,7 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+KBND?",
                                         "+KBND:",
                                         DEFAULT_AT_RESPONSE,
@@ -1182,7 +1182,7 @@ le_result_t pa_mrc_SetRatPreferences
     if (ratMask == LE_MRC_BITMASK_RAT_GSM)
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
-                                            pa_at_GetAtDeviceRef(),
+                                            pa_utils_GetAtDeviceRef(),
                                             "AT+KSRAT=1",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -1191,7 +1191,7 @@ le_result_t pa_mrc_SetRatPreferences
     else if (ratMask == LE_MRC_BITMASK_RAT_UMTS)
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
-                                            pa_at_GetAtDeviceRef(),
+                                            pa_utils_GetAtDeviceRef(),
                                             "AT+KSRAT=2",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -1200,7 +1200,7 @@ le_result_t pa_mrc_SetRatPreferences
     else if (ratMask == LE_MRC_BITMASK_RAT_ALL)
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
-                                            pa_at_GetAtDeviceRef(),
+                                            pa_utils_GetAtDeviceRef(),
                                             "AT+KSRAT=4",
                                             "",
                                             DEFAULT_AT_RESPONSE,
@@ -1250,7 +1250,7 @@ le_result_t pa_mrc_SetAutomaticRatPreference
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+KSRAT=4",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -1296,7 +1296,7 @@ le_result_t pa_mrc_GetRatPreferences
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+KSRAT?",
                                         "+KSRAT:",
                                         DEFAULT_AT_RESPONSE,
@@ -1645,7 +1645,7 @@ le_result_t pa_mrc_GetBandCapabilities
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+KBND?",
                                         "+KBND:",
                                         DEFAULT_AT_RESPONSE,

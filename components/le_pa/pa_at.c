@@ -8,9 +8,9 @@
 #include "legato.h"
 #include "interfaces.h"
 #include "pa.h"
-#include "pa_utils_local.h"
-#include "pa_at_local.h"
+#include "pa_utils.h"
 
+#include "pa_at_local.h"
 #include "pa_mrc.h"
 #include "pa_mrc_local.h"
 #include "pa_sms.h"

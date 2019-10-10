@@ -311,7 +311,7 @@ LE_SHARED void pa_utils_SetAtDeviceRef
  *
  **/
 //--------------------------------------------------------------------------------------------------
-void pa_utils_SetPppDeviceRef
+LE_SHARED void pa_utils_SetPppDeviceRef
 (
     le_atClient_DeviceRef_t pppDeviceRef
 );

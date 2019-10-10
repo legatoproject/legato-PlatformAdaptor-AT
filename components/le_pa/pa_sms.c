@@ -15,8 +15,8 @@
 
 #include "pa_sms.h"
 #include "pa_sms_local.h"
-#include "pa_utils_local.h"
-#include "pa_at_local.h"
+#include "pa_utils.h"
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -304,7 +304,7 @@ static void SetNewMsgIndicLocal
         case PA_SMS_MT_1:
         {
             UnsolCmtiRef = le_atClient_AddUnsolicitedResponseHandler(  "+CMTI:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         1   );
@@ -313,7 +313,7 @@ static void SetNewMsgIndicLocal
         case PA_SMS_MT_2:
         {
              UnsolCmtRef = le_atClient_AddUnsolicitedResponseHandler(   "+CMT:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         2   );
@@ -322,13 +322,13 @@ static void SetNewMsgIndicLocal
         case PA_SMS_MT_3:
         {
             UnsolCmtiRef = le_atClient_AddUnsolicitedResponseHandler(  "+CMTI:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         1   );
 
             UnsolCmtRef = le_atClient_AddUnsolicitedResponseHandler(    "+CMT:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         2   );
@@ -349,7 +349,7 @@ static void SetNewMsgIndicLocal
         case PA_SMS_BM_1:
         {
              UnsolCbmiRef = le_atClient_AddUnsolicitedResponseHandler(  "+CBMI:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         1   );
@@ -358,7 +358,7 @@ static void SetNewMsgIndicLocal
         case PA_SMS_BM_2:
         {
             UnsolCbmRef = le_atClient_AddUnsolicitedResponseHandler( "+CBM:",
-                                                                    pa_at_GetAtDeviceRef(),
+                                                                    pa_utils_GetAtDeviceRef(),
                                                                     UnsolicitedSmsHandler,
                                                                     NULL,
                                                                     2   );
@@ -367,13 +367,13 @@ static void SetNewMsgIndicLocal
         case PA_SMS_BM_3:
         {
              UnsolCbmiRef = le_atClient_AddUnsolicitedResponseHandler( "+CBMI:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         1   );
 
             UnsolCbmRef = le_atClient_AddUnsolicitedResponseHandler(    "+CBM:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         2);
@@ -394,7 +394,7 @@ static void SetNewMsgIndicLocal
         case PA_SMS_DS_1:
         {
             UnsolCdsRef = le_atClient_AddUnsolicitedResponseHandler(    "+CDS:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         2   );
@@ -403,7 +403,7 @@ static void SetNewMsgIndicLocal
         case PA_SMS_DS_2:
         {
             UnsolCdsiRef = le_atClient_AddUnsolicitedResponseHandler(   "+CDSI:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         UnsolicitedSmsHandler,
                                                                         NULL,
                                                                         1);
@@ -444,7 +444,7 @@ le_result_t pa_sms_SetNewMsgIndic
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CNMI=%d,%d,%d,%d,%d",mode,mt,bm,ds,bfr);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -489,7 +489,7 @@ le_result_t pa_sms_GetNewMsgIndic
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CNMI?",
                                         "+CNMI:",
                                         DEFAULT_AT_RESPONSE,
@@ -561,7 +561,7 @@ le_result_t pa_sms_SetMsgFormat
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGF=%d",format);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -638,7 +638,7 @@ le_result_t pa_sms_SendPduMsg
         return res;
     }
 
-    res = le_atClient_SetDevice(cmdRef,pa_at_GetAtDeviceRef());
+    res = le_atClient_SetDevice(cmdRef,pa_utils_GetAtDeviceRef());
     if (res != LE_OK)
     {
         le_atClient_Delete(cmdRef);
@@ -756,7 +756,7 @@ le_result_t pa_sms_RdPDUMsgFromMem
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGR=%d",index);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "+CMGR:|0|1|2|3|4|5|6|7|8|9",
                                         "OK|ERROR|+CME ERROR:|+CMS ERROR:",
@@ -882,7 +882,7 @@ le_result_t pa_sms_ListMsgFromMem
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "+CMGL:",
                                         "OK|ERROR|+CME ERROR:|+CMS ERROR:",
@@ -957,7 +957,7 @@ le_result_t pa_sms_DelMsgFromMem
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CMGD=%d,0",index);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         "OK|ERROR|+CME ERROR:|+CMS ERROR:",
@@ -1000,7 +1000,7 @@ le_result_t pa_sms_DelAllMsg
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CMGD=0,4",
                                         "",
                                         "OK|ERROR|+CME ERROR:|+CMS ERROR:",
@@ -1043,7 +1043,7 @@ le_result_t pa_sms_SaveSettings
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CSAS",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -1086,7 +1086,7 @@ le_result_t pa_sms_RestoreSettings
     char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CRES",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -1161,7 +1161,7 @@ le_result_t pa_sms_GetSmsc
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CSCA?",
                                         "+CSCA:",
                                         DEFAULT_AT_RESPONSE,

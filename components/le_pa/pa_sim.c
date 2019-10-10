@@ -10,9 +10,9 @@
 #include "interfaces.h"
 
 #include "pa_sim.h"
-#include "pa_utils_local.h"
+#include "pa_utils.h"
 #include "pa_sim_utils_local.h"
-#include "pa_at_local.h"
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -211,7 +211,7 @@ le_result_t __attribute__((weak)) pa_sim_GetCardIdentification
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CCID",
                                         "+CCID:",
                                         DEFAULT_AT_RESPONSE,
@@ -286,7 +286,7 @@ le_result_t __attribute__((weak)) pa_sim_GetIMSI
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CIMI",
                                         "0|1|2|3|4|5|6|7|8|9",
                                         DEFAULT_AT_RESPONSE,
@@ -353,7 +353,7 @@ le_result_t __attribute__((weak)) pa_sim_GetState
    *statePtr = LE_SIM_STATE_UNKNOWN;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CPIN?",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -468,7 +468,7 @@ le_result_t __attribute__((weak)) pa_sim_EnterPIN
     snprintf(command,PA_AT_LOCAL_SHORT_SIZE,"AT+CPIN=%s",pin);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -512,7 +512,7 @@ le_result_t __attribute__((weak)) pa_sim_EnterPUK
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CPIN=%s,%s",puk,pin);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -643,7 +643,7 @@ le_result_t __attribute__((weak)) pa_sim_ChangePIN
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -694,7 +694,7 @@ le_result_t __attribute__((weak)) pa_sim_EnablePIN
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -745,7 +745,7 @@ le_result_t __attribute__((weak)) pa_sim_DisablePIN
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -794,7 +794,7 @@ le_result_t pa_sim_GetSubscriberPhoneNumber
 
     pa_utils_SetCmeeMode(1);
     res = le_atClient_SetCommandAndSend(&cmdRef,
-        pa_at_GetAtDeviceRef(),
+        pa_utils_GetAtDeviceRef(),
         "AT+CNUM",
         "+CNUM:",
         DEFAULT_AT_RESPONSE,
@@ -884,7 +884,7 @@ le_result_t __attribute__((weak)) pa_sim_GetHomeNetworkOperator
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+COPS?",
                                         "+COPS:",
                                         DEFAULT_AT_RESPONSE,

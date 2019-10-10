@@ -7,8 +7,8 @@
 #include "legato.h"
 #include "interfaces.h"
 
-#include "pa_at_local.h"
-#include "pa_utils_local.h"
+
+#include "pa_utils.h"
 #include "pa_mdc.h"
 #include "pa_mdc_local.h"
 #include "pa_mdc_utils_local.h"

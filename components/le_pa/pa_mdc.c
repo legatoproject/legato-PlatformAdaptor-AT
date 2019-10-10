@@ -10,8 +10,9 @@
 #include "legato.h"
 
 #include "pa_mdc.h"
-#include "pa_utils_local.h"
+#include "pa_utils.h"
 #include "pa_at_local.h"
+
 
 #include <sys/ioctl.h>
 #include <termios.h>
@@ -132,7 +133,7 @@ static le_result_t AttachGPRS
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGATT=%d",toAttach);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -163,7 +164,7 @@ static le_result_t ActivateContext
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGACT=%d,%d",toActivate,profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -236,7 +237,7 @@ static le_result_t SetIndicationHandler
     snprintf(command,LE_ATDEFS_COMMAND_MAX_BYTES,"AT+CGEREP=%d",mode);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -246,7 +247,7 @@ static le_result_t SetIndicationHandler
         if (mode)
         {
             UnsolCgevRef = le_atClient_AddUnsolicitedResponseHandler(  "+CGEV:",
-                                                                        pa_at_GetAtDeviceRef(),
+                                                                        pa_utils_GetAtDeviceRef(),
                                                                         CGEVUnsolHandler,
                                                                         NULL,
                                                                         1);
@@ -309,7 +310,7 @@ static le_result_t StartPDPConnection
         LE_ERROR("Failed to set final response !");
         return res;
     }
-    res = le_atClient_SetDevice(cmdRef, pa_at_GetPppDeviceRef());
+    res = le_atClient_SetDevice(cmdRef, pa_utils_GetPppDeviceRef());
     if (res != LE_OK)
     {
         le_atClient_Delete(cmdRef);
@@ -359,7 +360,7 @@ static le_result_t StopPDPConnection
     le_result_t          res    = LE_FAULT;
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "ATGH",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -652,7 +653,7 @@ le_result_t pa_mdc_WriteProfile
              profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -669,7 +670,7 @@ le_result_t pa_mdc_WriteProfile
              profileIndex);
     cmdRef = NULL;
     res    = le_atClient_SetCommandAndSend(&cmdRef,
-                                           pa_at_GetAtDeviceRef(),
+                                           pa_utils_GetAtDeviceRef(),
                                            command,
                                            "",
                                            DEFAULT_AT_RESPONSE,
@@ -688,7 +689,7 @@ le_result_t pa_mdc_WriteProfile
              profileDataPtr->apn);
     cmdRef = NULL;
     res    = le_atClient_SetCommandAndSend(&cmdRef,
-                                           pa_at_GetAtDeviceRef(),
+                                           pa_utils_GetAtDeviceRef(),
                                            command,
                                            "",
                                            DEFAULT_AT_RESPONSE,
@@ -1008,7 +1009,7 @@ le_result_t pa_mdc_GetIPAddress
         snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
 
         res = le_atClient_SetCommandAndSend(&cmdRef,
-                                            pa_at_GetAtDeviceRef(),
+                                            pa_utils_GetAtDeviceRef(),
                                             "AT+CGDCONT?",
                                             intermediate,
                                             DEFAULT_AT_RESPONSE,
@@ -1090,7 +1091,7 @@ le_result_t pa_mdc_GetGatewayAddress
     snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGPADDR: %d,",profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         command,
                                         intermediate,
                                         DEFAULT_AT_RESPONSE,
@@ -1262,7 +1263,7 @@ le_result_t pa_mdc_GetAccessPointName
     snprintf(intermediate,LE_ATDEFS_RESPONSE_MAX_BYTES,"+CGDCONT: %d,",profileIndex);
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CGDCONT?",
                                         intermediate,
                                         DEFAULT_AT_RESPONSE,

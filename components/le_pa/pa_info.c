@@ -9,8 +9,8 @@
 #include "legato.h"
 #include "interfaces.h"
 #include "pa_info.h"
-#include "pa_utils_local.h"
-#include "pa_at_local.h"
+#include "pa_utils.h"
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -38,7 +38,7 @@ le_result_t pa_info_GetImei
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CGSN",
                                         "0|1|2|3|4|5|6|7|8|9",
                                         DEFAULT_AT_RESPONSE,
@@ -101,7 +101,7 @@ le_result_t pa_info_GetImeiSv
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+WSVN?",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -167,7 +167,7 @@ le_result_t pa_info_GetFirmwareVersion
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CGMR",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -252,7 +252,7 @@ le_result_t pa_info_GetDeviceModel
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CGMM",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -455,7 +455,7 @@ le_result_t pa_info_GetManufacturerName
     }
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "AT+CGMI",
                                         "",
                                         DEFAULT_AT_RESPONSE,

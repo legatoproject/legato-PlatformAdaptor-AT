@@ -8,8 +8,8 @@
 #include "legato.h"
 #include "interfaces.h"
 #include "pa_mcc.h"
-#include "pa_utils_local.h"
-#include "pa_at_local.h"
+#include "pa_utils.h"
+
 
 
 //--------------------------------------------------------------------------------------------------
@@ -253,13 +253,13 @@ le_result_t pa_mcc_SetCallEventHandler
     }
 
     UnsolRingRef = le_atClient_AddUnsolicitedResponseHandler(   "RING",
-                                                                pa_at_GetAtDeviceRef(),
+                                                                pa_utils_GetAtDeviceRef(),
                                                                 PaMccUnsolHandler,
                                                                 NULL,
                                                                 1   );
 
     UnsolCringRef = le_atClient_AddUnsolicitedResponseHandler(  "+CRING:",
-                                                                pa_at_GetAtDeviceRef(),
+                                                                pa_utils_GetAtDeviceRef(),
                                                                 PaMccUnsolHandler,
                                                                 NULL,
                                                                 1   );
@@ -336,33 +336,33 @@ le_result_t pa_mcc_VoiceDial
              (cug==PA_MCC_ACTIVATE_CUG)?'g':'G');
 
     UnsolOkRef = le_atClient_AddUnsolicitedResponseHandler( "OK",
-                                                            pa_at_GetAtDeviceRef(),
+                                                            pa_utils_GetAtDeviceRef(),
                                                             PaMccUnsolHandler,
                                                             NULL,
                                                             1 );
 
     UnsolNoCarrierRef = le_atClient_AddUnsolicitedResponseHandler(  "NO CARRIER",
-                                                                    pa_at_GetAtDeviceRef(),
+                                                                    pa_utils_GetAtDeviceRef(),
                                                                     PaMccUnsolHandler,
                                                                     NULL,
                                                                     1   );
 
 
     UnsolBusyRef = le_atClient_AddUnsolicitedResponseHandler(   "BUSY",
-                                                                pa_at_GetAtDeviceRef(),
+                                                                pa_utils_GetAtDeviceRef(),
                                                                 PaMccUnsolHandler,
                                                                 NULL,
                                                                 1   );
 
     UnsolNoAnswerRef = le_atClient_AddUnsolicitedResponseHandler(   "NO ANSWER",
-                                                                    pa_at_GetAtDeviceRef(),
+                                                                    pa_utils_GetAtDeviceRef(),
                                                                     PaMccUnsolHandler,
                                                                     NULL,
                                                                     1   );
 
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         (char*)command,
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -399,13 +399,13 @@ le_result_t pa_mcc_Answer
     }
 
     UnsolNoCarrierRef = le_atClient_AddUnsolicitedResponseHandler( "NO CARRIER",
-                                                                   pa_at_GetAtDeviceRef(),
+                                                                   pa_utils_GetAtDeviceRef(),
                                                                    PaMccUnsolHandler,
                                                                    NULL,
                                                                    1 );
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "ATA",
                                         "",
                                         DEFAULT_AT_RESPONSE,
@@ -458,7 +458,7 @@ le_result_t pa_mcc_HangUpAll
     UnregisterDial();
 
     res = le_atClient_SetCommandAndSend(&cmdRef,
-                                        pa_at_GetAtDeviceRef(),
+                                        pa_utils_GetAtDeviceRef(),
                                         "ATH0",
                                         "",
                                         DEFAULT_AT_RESPONSE,
