@@ -522,6 +522,265 @@ le_result_t pa_gnss_GetLeapSeconds
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * This function gets the GNSS minimum elevation.
+ *
+ * @return
+*  - LE_OK on success
+*  - LE_BAD_PARAMETER if minElevationPtr is NULL
+*  - LE_FAULT on failure
+*  - LE_UNSUPPORTED request not supported
+*/
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetMinElevation
+(
+   uint8_t*  minElevationPtr     ///< [OUT] Minimum elevation in degrees [range 0..90].
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Set the area for the GNSS constellation
+ *
+ * @return
+ *  - LE_OK on success
+ *  - LE_FAULT on failure
+ *  - LE_UNSUPPORTED request not supported
+ *  - LE_BAD_PARAMETER on invalid constellation area
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_SetConstellationArea
+(
+    le_gnss_Constellation_t satConstellation,        ///< [IN] GNSS constellation used in solution.
+    le_gnss_ConstellationArea_t constellationArea    ///< [IN] GNSS constellation area.
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get the area for the GNSS constellation
+ *
+ * @return
+ *  - LE_OK on success
+ *  - LE_FAULT on failure
+ *  - LE_UNSUPPORTED request not supported
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetConstellationArea
+(
+    le_gnss_Constellation_t satConstellation,         ///< [IN] GNSS constellation used in solution.
+    le_gnss_ConstellationArea_t* constellationAreaPtr ///< [OUT] GNSS constellation area.
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Enables the EXT_GPS_LNA_EN signal
+ *
+ * @return LE_OK               Function succeeded.
+ * @return LE_UNSUPPORTED      Function not supported on this platform
+ *
+ * @note The EXT_GPS_LNA_EN signal will be set high when the GNSS state is active
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_EnableExternalLna
+(
+    void
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Disables the EXT_GPS_LNA_EN signal
+ *
+ * @return LE_OK               Function succeeded.
+ * @return LE_UNSUPPORTED      Function not supported on this platform
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_DisableExternalLna
+(
+    void
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Read the EXT_GPS_LNA_EN Status
+ *
+ * @return LE_OK               Function succeeded.
+ * @return LE_UNSUPPORTED      Function not supported on this platform
+ *
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetExternalLna
+(
+    uint8_t* lnaEnStatusPtr   ///< [OUT] GNSS LNA Status.
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Convert a location data parameter from/to multi-coordinate system
+ *
+ * @return
+ *  - LE_OK on success
+ *  - LE_FAULT on failure
+ *  - LE_BAD_PARAMETER if locationDataDstPtr is NULL
+ *  - LE_UNSUPPORTED request not supported
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_ConvertDataCoordinateSystem
+(
+    le_gnss_CoordinateSystem_t coordinateSrc,     ///< [IN] Coordinate system to convert from.
+    le_gnss_CoordinateSystem_t coordinateDst,     ///< [IN] Coordinate system to convert to.
+    le_gnss_LocationDataType_t locationDataType,  ///< [IN] Type of location data to convert.
+    int64_t locationDataSrc,                      ///< [IN] Data to convert.
+    int64_t* locationDataDstPtr                   ///< [OUT] Converted Data.
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+// -------------------------------------------------------------------------------------------------
+/**
+ * Get the minimum NMEA rate supported on this platform
+ *
+ * @return LE_OK               Function succeeded.
+ * @return LE_FAULT            Function failed.
+ */
+// -------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetMinNmeaRate
+(
+    uint32_t* minNmeaRatePtr    ///< [OUT] Minimum NMEA rate in milliseconds.
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_FAULT;
+}
+
+// -------------------------------------------------------------------------------------------------
+/**
+ * Get the maximum NMEA rate supported on this platform
+ *
+ * @return LE_OK               Function succeeded.
+ * @return LE_FAULT            Function failed.
+ */
+// -------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetMaxNmeaRate
+(
+    uint32_t* maxNmeaRatePtr    ///< [OUT] Maximum NMEA rate in milliseconds.
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Returns a bitmask containing all NMEA sentences supported on this platform
+ *
+ * @return LE_OK               Function succeeded.
+ * @return LE_FAULT            The function failed.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetSupportedNmeaSentences
+(
+    le_gnss_NmeaBitMask_t* nmeaMaskPtr    ///< [OUT] Supported NMEA sentences
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Returns a bitmask containing all satellite constellations supported on this platform
+ *
+ * @return LE_OK               Function succeeded.
+ * @return LE_FAULT            The function failed.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetSupportedConstellations
+(
+    le_gnss_ConstellationBitMask_t* constellationMaskPtr    ///< [OUT] Supported GNSS constellations
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function sets the GNSS minimum elevation.
+ *
+ * @return
+ *  - LE_OK on success
+ *  - LE_FAULT on failure
+ *  - LE_UNSUPPORTED request not supported
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_SetMinElevation
+(
+    uint8_t  minElevation      ///< [IN] Minimum elevation in degrees [range 0..90].
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to register an handler for NMEA frames notifications.
+ *
+ * @return A handler reference, which is only needed for later removal of the handler.
+ *
+ * @note Doesn't return on failure, so there's no need to check the return value for errors.
+ */
+//--------------------------------------------------------------------------------------------------
+le_event_HandlerRef_t pa_gnss_AddNmeaHandler
+(
+    pa_gnss_NmeaHandlerFunc_t handler ///< [IN] The handler function.
+)
+{
+    LE_ERROR("Unsupported function called");
+    return NULL;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to remove a handler for NMEA frames notifications.
+ */
+//--------------------------------------------------------------------------------------------------
+void pa_gnss_RemoveNmeaHandler
+(
+    le_event_HandlerRef_t    handlerRef ///< [IN] The handler reference.
+)
+{
+    LE_ERROR("Unsupported function called");
+}
+
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Component initializer called automatically by the Legato application framework.
  * This is not used because we want to make sure that GNSS is available before initializing
  * the platform adapter.
