@@ -254,7 +254,7 @@ static int OpenAndConfigurePort
 
     if (fd < 0)
     {
-        LE_ERROR("Open device failed, errno %d, %s", errno, strerror(errno));
+        LE_ERROR("Open device failed, errno %d, %s", errno, LE_ERRNO_TXT(errno));
         return fd;
     }
 
