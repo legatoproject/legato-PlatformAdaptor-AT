@@ -50,6 +50,7 @@ cflags:
     -I$LEGATO_ROOT/components
     -I$LEGATO_ROOT/interfaces/atServices
     -I$CURDIR/../le_pa_utils
+    -I$CURDIR/../le_pa_common
     -I$LEGATO_ROOT/interfaces/modemServices
 }
 

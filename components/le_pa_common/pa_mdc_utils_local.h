@@ -29,7 +29,7 @@ le_result_t pa_mdc_utils_setIPV6StringFormat
  * @return LE_FAULT         modem could not attach or detach from the Packet domain service
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_mdc_utils_AttachPS
+LE_SHARED le_result_t pa_mdc_utils_AttachPS
 (
     bool toAttach               ///< [IN] boolean value
 );
