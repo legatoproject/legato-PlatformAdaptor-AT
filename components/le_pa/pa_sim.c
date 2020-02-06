@@ -188,10 +188,10 @@ le_result_t pa_sim_GetSelectedCard
 /**
  * This function get the card identification (ICCID).
  *
- * @return LE_BAD_PARAMETER The parameters are invalid.
- * @return LE_FAULT         The function failed.
- * @return LE_TIMEOUT       No response was received.
  * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_GetCardIdentification
@@ -227,11 +227,17 @@ le_result_t pa_sim_GetCardIdentification
         responseStr,
         PA_AT_LOCAL_STRING_SIZE);
 
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -264,10 +270,10 @@ le_result_t pa_sim_GetCardIdentification
 /**
  * This function get the International Mobile Subscriber Identity (IMSI).
  *
- * @return LE_BAD_PARAMETER The parameters are invalid.
- * @return LE_FAULT         The function failed.
- * @return LE_TIMEOUT       No response was received.
  * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_GetIMSI
@@ -302,11 +308,17 @@ le_result_t pa_sim_GetIMSI
         responseStr,
         sizeof(responseStr));
 
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -329,10 +341,10 @@ le_result_t pa_sim_GetIMSI
 /**
  * This function get the SIM Status.
  *
- * @return LE_BAD_PARAMETER The parameters are invalid.
- * @return LE_FAULT         The function failed.
- * @return LE_TIMEOUT       No response was received.
  * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sim_GetState
@@ -375,6 +387,13 @@ le_result_t pa_sim_GetState
         le_atClient_Delete(cmdRef);
         return res;
     }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
+    }
+
 
     if (pa_sim_utils_CheckStatus(responseStr,statePtr))
     {

@@ -15,9 +15,10 @@
 /**
  * This function get the International Mobile Equipment Identity (IMEI).
  *
- * @return  LE_FAULT         The function failed to get the value.
- * @return  LE_TIMEOUT       No response was received from the Modem.
  * @return  LE_OK            The function succeeded.
+ * @return  LE_BAD_PARAMETER The parameters are invalid.
+ * @return  LE_TIMEOUT       No response was received from the Modem.
+ * @return  LE_FAULT         The function failed to get the value.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetImei
@@ -52,11 +53,17 @@ le_result_t pa_info_GetImei
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -78,9 +85,10 @@ le_result_t pa_info_GetImei
 /**
  * This function get the International Mobile Equipment Identity software version number (IMEISV).
  *
- * @return  LE_FAULT         The function failed to get the value.
- * @return  LE_TIMEOUT       No response was received from the Modem.
  * @return  LE_OK            The function succeeded.
+ * @return  LE_BAD_PARAMETER The parameters are invalid.
+ * @return  LE_TIMEOUT       No response was received from the Modem.
+ * @return  LE_FAULT         The function failed to get the value.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetImeiSv
@@ -115,11 +123,17 @@ le_result_t pa_info_GetImeiSv
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -144,6 +158,7 @@ le_result_t pa_info_GetImeiSv
  *
  * @return
  *      - LE_OK on success
+ *      - LE_BAD_PARAMETER The parameters are invalid.
  *      - LE_NOT_FOUND if the version string is not available
  *      - LE_FAULT for any other errors
  */
@@ -181,11 +196,17 @@ le_result_t pa_info_GetFirmwareVersion
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -229,9 +250,10 @@ le_result_t pa_info_GetBootloaderVersion
  * This function gets the device model identity.
  *
  * @return
- * - LE_FAULT         The function failed to get the value.
- * - LE_OVERFLOW      The device model identity length exceed the maximum length.
  * - LE_OK            The function succeeded.
+ * - LE_BAD_PARAMETER The parameters are invalid.
+ * - LE_OVERFLOW      The device model identity length exceed the maximum length.
+ * - LE_FAULT         The function failed to get the value.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_info_GetDeviceModel
@@ -265,11 +287,17 @@ le_result_t pa_info_GetDeviceModel
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -411,6 +439,7 @@ le_result_t pa_info_GetNai
  *
  * @return
  *      - LE_OK            The function succeeded.
+ *      - LE_BAD_PARAMETER The parameters are invalid.
  *      - LE_FAULT         The function failed to get the value.
  *      - LE_OVERFLOW      The Manufacturer Name length exceed the maximum length.
  */
@@ -448,11 +477,17 @@ le_result_t pa_info_GetManufacturerName
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,

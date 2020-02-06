@@ -92,8 +92,10 @@ pa_mrc_RegistrationType_t;
 /**
  * This function must be called to initialize the mrc module
  *
- * @return LE_FAULT         The function failed to initialize the module.
  * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER Bad parameter passed to the function
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed to initialize the module.
  */
 //--------------------------------------------------------------------------------------------------
 LE_SHARED le_result_t pa_mrc_Init
@@ -161,8 +163,9 @@ LE_SHARED le_result_t pa_mrc_local_GetOperatorTextMode
 /**
  * This function set the network operator mode (text or number mode).
  *
- * @return LE_FAULT         The function failed.
  * @return LE_OK            The function succeeded.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 LE_SHARED le_result_t pa_mrc_local_SetOperatorTextMode

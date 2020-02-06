@@ -268,6 +268,7 @@ static le_result_t SetIndicationHandler
  * Start the PDP Modem connection.
  *
  * @return LE_OK            Activate the profile in the modem
+ * @return LE_BAD_PARAMETER The parameters are invalid.
  * @return LE_FAULT         Could not activate the profile in the modem
  */
 //--------------------------------------------------------------------------------------------------
@@ -328,9 +329,14 @@ static le_result_t StartPDPConnection
                                            cmdResponseStr,
                                            sizeof(cmdResponseStr));
 
-        if ((res != LE_OK) || (strcmp(cmdResponseStr,"CONNECT") != 0))
+        if (res != LE_OK)
         {
             LE_ERROR("Failed to establish the connection");
+        }
+        else if (strcmp(cmdResponseStr,"CONNECT") != 0)
+        {
+            LE_ERROR("Final response is not CONNECT");
+            res = LE_FAULT;
         }
         else
         {
@@ -581,6 +587,7 @@ le_result_t pa_mdc_GetDefaultProfileIndex
  *
  * @return
  *      - LE_OK on success
+ *      - LE_BAD_PARAMETER when profileIndex is 0 or profileDataPtr is NULL
  *      - LE_FAULT on failure
  */
 //--------------------------------------------------------------------------------------------------
@@ -592,9 +599,14 @@ le_result_t pa_mdc_ReadProfile
 {
     le_result_t res = LE_FAULT;
 
+    if(!profileDataPtr)
+    {
+        LE_DEBUG("Invalid profileDataPtr");
+        return LE_BAD_PARAMETER;
+    }
     if (!profileIndex)
     {
-        LE_DEBUG("One parameter is NULL");
+        LE_DEBUG("Invalid profileIndex");
         return LE_BAD_PARAMETER;
     }
 
@@ -612,6 +624,8 @@ le_result_t pa_mdc_ReadProfile
  *
  * @return
  *      - LE_OK on success
+ *      - LE_BAD_PARAMETER on parameters invalid.
+ *      - LE_TIMEOUT on no response received.
  *      - LE_FAULT on failure
  */
 //--------------------------------------------------------------------------------------------------
@@ -643,6 +657,8 @@ le_result_t pa_mdc_InitializeProfile
  *
  * @return
  *      - LE_OK on success
+ *      - LE_BAD_PARAMETER on parameters invalid.
+ *      - LE_TIMEOUT on no response received.
  *      - LE_FAULT on failure
  */
 //--------------------------------------------------------------------------------------------------
@@ -952,6 +968,8 @@ le_result_t pa_mdc_GetInterfaceName
  *
  * @return
  *      - LE_OK on success
+ *      - LE_TIMEOUT on no response received.
+ *      - LE_BAD_PARAMETER on parameters invalid.
  *      - LE_OVERFLOW if the IP address would not fit in gatewayAddrStr
  *      - LE_FAULT for all other errors
  */
@@ -1151,6 +1169,8 @@ le_result_t pa_mdc_GetDNSAddresses
  * @return
  *      - LE_OK on success
  *      - LE_OVERFLOW if the Access Point Name would not fit in apnNameStr
+ *      - LE_TIMEOUT on no response received.
+ *      - LE_BAD_PARAMETER on parameters invalid.
  *      - LE_FAULT for all other errors
  */
 //--------------------------------------------------------------------------------------------------
@@ -1192,11 +1212,17 @@ le_result_t pa_mdc_GetAccessPointName
                                        responseStr,
                                        sizeof(responseStr));
 
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the final response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     responseStr[0] = NULL_CHAR;

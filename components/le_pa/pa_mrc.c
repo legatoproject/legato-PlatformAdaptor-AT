@@ -64,11 +64,11 @@ le_result_t pa_mrc_ConfigureNetworkReg
 /**
  * This function gets the Signal Strength information.
  *
+ * @return LE_OK            The function succeeded.
  * @return LE_BAD_PARAMETER Bad parameter passed to the function
  * @return LE_OUT_OF_RANGE  The signal strength values are not known or not detectable.
- * @return LE_FAULT         The function failed.
  * @return LE_TIMEOUT       No response was received.
- * @return LE_OK            The function succeeded.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetSignalStrength
@@ -106,11 +106,17 @@ le_result_t pa_mrc_GetSignalStrength
     res = le_atClient_GetFinalResponse(cmdRef,
                                         finalResponse,
                                         LE_ATDEFS_RESPONSE_MAX_BYTES);
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -251,8 +257,9 @@ uint16_t pa_mrc_GetServingCellScramblingCode
 /**
  * This function gets the Radio Access Technology.
  *
- * @return LE_FAULT The function failed to get the Signal strength information.
- * @return LE_OK    The function succeeded.
+ * @return LE_OK            The function succeeded.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed to get the Signal strength information.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetRadioAccessTechInUse
@@ -282,11 +289,17 @@ le_result_t pa_mrc_GetRadioAccessTechInUse
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -402,8 +415,9 @@ const char * pa_mrc_local_GetRegisterUnso
 /**
  * This function set the network operator mode (text or number mode).
  *
- * @return LE_FAULT         The function failed.
  * @return LE_OK            The function succeeded.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_local_SetOperatorTextMode
@@ -443,9 +457,14 @@ le_result_t pa_mrc_local_SetOperatorTextMode
     res = le_atClient_GetFinalResponse(cmdRef,responseStr,sizeof(responseStr));
     le_atClient_Delete(cmdRef);
 
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
+    }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response not OK");
+        return LE_FAULT;
     }
 
     return res;

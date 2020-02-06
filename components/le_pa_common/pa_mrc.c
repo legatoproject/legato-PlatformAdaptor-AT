@@ -370,9 +370,10 @@ static void SubscribeUnsolCreg
 /**
  * This function gets information of the Network or the packet switch registration.
  *
- * @return LE_FAULT        The function failed.
- * @return LE_TIMEOUT      No response was received.
- * @return LE_OK           The function succeeded.
+ * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 static le_result_t GetRegistration
@@ -447,11 +448,17 @@ static le_result_t GetRegistration
     res = le_atClient_GetFinalResponse(cmdRef,
                                        responseStr,
                                        sizeof(responseStr));
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the OK");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     responseStr[0] = NULL_CHAR;
@@ -708,8 +715,10 @@ static pa_mrc_ScanInformation_t* FindScanInformation
 /**
  * This function must be called to initialize the mrc module
  *
- * @return LE_FAULT         The function failed to initialize the module.
  * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER Bad parameter passed to the function
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed to initialize the module.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_Init
@@ -949,12 +958,19 @@ le_result_t pa_mrc_GetRadioPower
     res = le_atClient_GetFinalResponse(cmdRef,
                                        responseStr,
                                        PA_AT_LOCAL_STRING_SIZE);
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
     }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
+    }
+
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
                                                    responseStr,
@@ -1343,9 +1359,10 @@ le_result_t pa_mrc_GetServingCellLteTracAreaCode
 /**
  * This function must be called to get the Location Area Code of the serving cell.
  *
- * @return
- *  - LE_FAULT  Function failed.
- *  - LE_OK     Function succeeded.
+ * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetServingCellLocAreaCode
@@ -1631,9 +1648,10 @@ le_result_t pa_mrc_GetNetworkRegState
 /**
  * This function must be called to register automatically on network
  *
- * @return
- *      - LE_OK             on success
- *      - LE_FAULT          for all other errors
+ * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_SetAutomaticNetworkRegistration
@@ -1660,9 +1678,15 @@ le_result_t pa_mrc_SetAutomaticNetworkRegistration
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
-    if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Function failed !");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
         le_atClient_Delete(cmdRef);
         return LE_FAULT;
     }
@@ -1676,7 +1700,11 @@ le_result_t pa_mrc_SetAutomaticNetworkRegistration
 /**
  * This function must be called to get current registration mode
  *
- */
+ * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
+*/
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_GetNetworkRegistrationMode
 (
@@ -1754,10 +1782,9 @@ le_result_t pa_mrc_GetNetworkRegistrationMode
 /**
  * Set the Radio Access Technology Preferences
  *
- * @return
- * - LE_OK              On success
- * - LE_FAULT           On failure
- * - LE_UNSUPPORTED     Not supported by platform
+ * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_SetRatPreferences
@@ -1811,13 +1838,18 @@ le_result_t pa_mrc_SetRatPreferences
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    le_atClient_Delete(cmdRef);
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
-        le_atClient_Delete(cmdRef);
         return res;
     }
-    le_atClient_Delete(cmdRef);
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        return LE_FAULT;
+    }
+
     return res;
 }
 
@@ -1825,9 +1857,9 @@ le_result_t pa_mrc_SetRatPreferences
 /**
  * Set the Rat Automatic Radio Access Technology Preference
  *
- * @return
- * - LE_OK              on success
- * - LE_FAULT           on failure
+ * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mrc_SetAutomaticRatPreference
@@ -1854,13 +1886,18 @@ le_result_t pa_mrc_SetAutomaticRatPreference
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    le_atClient_Delete(cmdRef);
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
-        le_atClient_Delete(cmdRef);
         return res;
     }
-    le_atClient_Delete(cmdRef);
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        return LE_FAULT;
+    }
+
     return res;
 }
 

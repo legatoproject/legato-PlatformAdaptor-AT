@@ -139,10 +139,10 @@ le_result_t pa_sms_SetNewMsgIndic
 /**
  * This function gets the New Message Indication settings.
  *
- * @return LE_FAULT         The function failed to get the New Message Indication settings.
+ * @return LE_OK            The function succeeded.
  * @return LE_BAD_PARAMETER Bad parameter, one is NULL.
  * @return LE_TIMEOUT       No response was received from the Modem.
- * @return LE_OK            The function succeeded.
+ * @return LE_FAULT         The function failed to get the New Message Indication settings.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_GetNewMsgIndic
@@ -160,9 +160,9 @@ le_result_t pa_sms_GetNewMsgIndic
 /**
  * This function sets the Preferred Message Format (PDU or Text mode).
  *
- * @return LE_FAULT         The function failed to sets the Preferred Message Format.
- * @return LE_TIMEOUT       No response was received from the Modem.
  * @return LE_OK            The function succeeded.
+ * @return LE_TIMEOUT       No response was received from the Modem.
+ * @return LE_FAULT         The function failed to sets the Preferred Message Format.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_SetMsgFormat
@@ -174,9 +174,9 @@ le_result_t pa_sms_SetMsgFormat
 /**
  * This function saves the SMS Settings.
  *
- * @return LE_FAULT        The function failed to save the SMS Settings.
- * @return LE_TIMEOUT      No response was received from the Modem.
  * @return LE_OK           The function succeeded.
+ * @return LE_TIMEOUT      No response was received from the Modem.
+ * @return LE_FAULT        The function failed to save the SMS Settings.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_SaveSettings

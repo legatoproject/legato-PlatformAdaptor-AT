@@ -466,10 +466,10 @@ le_result_t pa_sms_SetNewMsgIndic
 /**
  * This function gets the New Message Indication settings.
  *
- * @return LE_FAULT         The function failed to get the New Message Indication settings.
+ * @return LE_OK            The function succeeded.
  * @return LE_BAD_PARAMETER Bad parameter, one is NULL.
  * @return LE_TIMEOUT       No response was received from the Modem.
- * @return LE_OK            The function succeeded.
+ * @return LE_FAULT         The function failed to get the New Message Indication settings.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_GetNewMsgIndic
@@ -510,11 +510,17 @@ le_result_t pa_sms_GetNewMsgIndic
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse, "OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Function failed !");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -590,9 +596,9 @@ end:
 /**
  * This function sets the Preferred Message Format (PDU or Text mode).
  *
- * @return LE_FAULT         The function failed to sets the Preferred Message Format.
- * @return LE_TIMEOUT       No response was received from the Modem.
  * @return LE_OK            The function succeeded.
+ * @return LE_TIMEOUT       No response was received from the Modem.
+ * @return LE_FAULT         The function failed to sets the Preferred Message Format.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_SetMsgFormat
@@ -623,9 +629,15 @@ le_result_t pa_sms_SetMsgFormat
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     le_atClient_Delete(cmdRef);
@@ -637,9 +649,9 @@ le_result_t pa_sms_SetMsgFormat
  * This function sends a message in PDU mode.
  *
  * @return LE_OK              The function succeeded.
- * @return LE_FAULT           The function failed to send a message in PDU mode.
  * @return LE_BAD_PARAMETER   The parameters are invalid.
  * @return LE_TIMEOUT         No response was received from the Modem.
+ * @return LE_FAULT           The function failed to send a message in PDU mode.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_SendPduMsg
@@ -726,11 +738,17 @@ le_result_t pa_sms_SendPduMsg
         res = le_atClient_GetFinalResponse(cmdRef,
                                            finalResponse,
                                            LE_ATDEFS_RESPONSE_MAX_BYTES);
-        if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+        if (res != LE_OK)
         {
             LE_ERROR("Failed to get the finalResponse");
             le_atClient_Delete(cmdRef);
             return res;
+        }
+        else if (strcmp(finalResponse,"OK") != 0)
+        {
+            LE_ERROR("Final response is not OK");
+            le_atClient_Delete(cmdRef);
+            return LE_FAULT;
         }
 
         res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -773,10 +791,11 @@ le_result_t pa_sms_SendPduMsg
 /**
  * This function gets the message from the preferred message storage.
  *
- * @return LE_FAULT        The function failed to get the message from the preferred message
- *                         storage.
- * @return LE_TIMEOUT      No response was received from the Modem.
- * @return LE_OK           The function succeeded.
+ * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received from the Modem.
+ * @return LE_FAULT         The function failed to get the message from the preferred message
+ *                          storage.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_RdPDUMsgFromMem
@@ -817,11 +836,17 @@ le_result_t pa_sms_RdPDUMsgFromMem
     res = le_atClient_GetFinalResponse(cmdRef,
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -883,11 +908,11 @@ le_result_t pa_sms_RdPDUMsgFromMem
  * This function gets the indexes of messages stored in the preferred memory for a specific
  * status.
  *
- * @return LE_FAULT          The function failed to get the indexes of messages stored in the
- *                           preferred memory.
+ * @return LE_OK             The function succeeded.
  * @return LE_BAD_PARAMETER  The parameters are invalid.
  * @return LE_TIMEOUT        No response was received from the Modem.
- * @return LE_OK             The function succeeded.
+ * @return LE_FAULT          The function failed to get the indexes of messages stored in the
+ *                           preferred memory.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_ListMsgFromMem
@@ -950,9 +975,15 @@ le_result_t pa_sms_ListMsgFromMem
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
         le_atClient_Delete(cmdRef);
         return LE_FAULT;
     }
@@ -991,10 +1022,10 @@ le_result_t pa_sms_ListMsgFromMem
 /**
  * This function deletes one specific Message from preferred message storage.
  *
+ * @return LE_OK             The function succeeded.
+ * @return LE_TIMEOUT        No response was received from the Modem.
  * @return LE_FAULT          The function failed to delete one specific Message from preferred
  *                           message storage.
- * @return LE_TIMEOUT        No response was received from the Modem.
- * @return LE_OK             The function succeeded.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_DelMsgFromMem
@@ -1027,9 +1058,15 @@ le_result_t pa_sms_DelMsgFromMem
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     le_atClient_Delete(cmdRef);
@@ -1040,9 +1077,10 @@ le_result_t pa_sms_DelMsgFromMem
 /**
  * This function deletes all Messages from preferred message storage.
  *
- * @return LE_FAULT        The function failed to delete all Messages from preferred message storage.
- * @return LE_TIMEOUT      No response was received from the Modem.
  * @return LE_OK           The function succeeded.
+ * @return LE_TIMEOUT      No response was received from the Modem.
+ * @return LE_FAULT        The function failed to delete all Messages from preferred message
+ *                         storage.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_DelAllMsg
@@ -1070,9 +1108,15 @@ le_result_t pa_sms_DelAllMsg
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     le_atClient_Delete(cmdRef);
@@ -1083,9 +1127,9 @@ le_result_t pa_sms_DelAllMsg
 /**
  * This function saves the SMS Settings.
  *
- * @return LE_FAULT        The function failed to save the SMS Settings.
- * @return LE_TIMEOUT      No response was received from the Modem.
  * @return LE_OK           The function succeeded.
+ * @return LE_TIMEOUT      No response was received from the Modem.
+ * @return LE_FAULT        The function failed to save the SMS Settings.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_SaveSettings
@@ -1113,9 +1157,15 @@ le_result_t pa_sms_SaveSettings
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     le_atClient_Delete(cmdRef);
@@ -1126,9 +1176,9 @@ le_result_t pa_sms_SaveSettings
 /**
  * This function restores the SMS Settings.
  *
- * @return LE_FAULT        The function failed to restore the SMS Settings.
- * @return LE_TIMEOUT      No response was received from the Modem.
  * @return LE_OK           The function succeeded.
+ * @return LE_TIMEOUT      No response was received from the Modem.
+ * @return LE_FAULT        The function failed to restore the SMS Settings.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_RestoreSettings
@@ -1156,9 +1206,15 @@ le_result_t pa_sms_RestoreSettings
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     le_atClient_Delete(cmdRef);
@@ -1169,9 +1225,9 @@ le_result_t pa_sms_RestoreSettings
 /**
  * This function changes the message status.
  *
- * @return LE_FAULT        The function failed to change the message status.
- * @return LE_TIMEOUT      No response was received from the Modem.
  * @return LE_OK           The function succeeded.
+ * @return LE_TIMEOUT      No response was received from the Modem.
+ * @return LE_FAULT        The function failed to change the message status.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_ChangeMessageStatus
@@ -1191,9 +1247,10 @@ le_result_t pa_sms_ChangeMessageStatus
  * This function must be called to get the SMS center.
  *
  * @return
- *   - LE_FAULT        The function failed.
- *   - LE_TIMEOUT      No response was received from the Modem.
  *   - LE_OK           The function succeeded.
+ *   - LE_BAD_PARAMETER The parameters are invalid.
+ *   - LE_TIMEOUT      No response was received from the Modem.
+ *   - LE_FAULT        The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_sms_GetSmsc
@@ -1232,11 +1289,17 @@ le_result_t pa_sms_GetSmsc
                                        finalResponse,
                                        LE_ATDEFS_RESPONSE_MAX_BYTES);
 
-    if ((res != LE_OK) || (strcmp(finalResponse,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,

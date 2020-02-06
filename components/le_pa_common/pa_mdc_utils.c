@@ -51,6 +51,7 @@ static int CountMyChar
  * Set IPV6 string format
  *
  * @return LE_OK            Ipv6 string format set
+ * @return LE_TIMEOUT       No response was received.
  * @return LE_FAULT         Command failed
  */
 //--------------------------------------------------------------------------------------------------
@@ -125,8 +126,10 @@ le_result_t pa_mdc_utils_AttachPS
 /**
  * This function must be called to retrieve the PDP type from PDP Context
  *
- * @return LE_FAULT         The function failed.
  * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_utils_GetPDPType
@@ -166,11 +169,17 @@ le_result_t pa_mdc_utils_GetPDPType
         responseStr,
         PA_AT_LOCAL_STRING_SIZE);
 
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the final response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,
@@ -252,6 +261,9 @@ bool pa_mdc_utils_IsConnected
 //--------------------------------------------------------------------------------------------------
 /**
  * This function convert IPV6 dot format address to Hexa format
+ *
+ * @return LE_OK            The function succeeded.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 static le_result_t ConvertIpv6AddrDotToHexaFormat
@@ -342,6 +354,8 @@ bool pa_mdc_util_CheckConvertIPAddressFormat
 /**
  * This function return the gateway address from +CGCONTRDP response.
  *
+ * @return LE_OK            The function succeeded.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_util_GetGWAddr
@@ -533,9 +547,10 @@ le_result_t pa_mdc_util_GetDNSAddr
 /**
  * This function must be called to get autentification setting on PDP context
  *
- * @return
- *  - LE_FAULT  Function failed.
- *  - LE_OK     Function succeeded.
+ * @return LE_OK            The function succeeded.
+ * @return LE_BAD_PARAMETER The parameters are invalid.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_FAULT         The function failed.
  */
 //--------------------------------------------------------------------------------------------------
 le_result_t pa_mdc_utils_GetAuth
@@ -592,11 +607,17 @@ le_result_t pa_mdc_utils_GetAuth
         responseStr,
         PA_AT_LOCAL_STRING_SIZE);
 
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the final response");
         le_atClient_Delete(cmdRef);
         return res;
+    }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
     }
 
     res = le_atClient_GetFirstIntermediateResponse(cmdRef,

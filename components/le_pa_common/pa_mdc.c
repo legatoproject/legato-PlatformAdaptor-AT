@@ -27,6 +27,10 @@ static uint8_t ProfileIndexCidMapping[PA_MDC_MAX_PROFILE+1] = {0};
 //--------------------------------------------------------------------------------------------------
 /**
  * This function must be called to compute default IPV6 Gateway.
+ * @return
+ *      - LE_OK on success
+ *      - LE_OVERFLOW if the IP address would not fit in gatewayAddrStr
+ *      - LE_FAULT for all other errors
  */
 //--------------------------------------------------------------------------------------------------
 static le_result_t GetIpv6DefaultGateway
@@ -48,6 +52,7 @@ static le_result_t GetIpv6DefaultGateway
  *
  * @return
  *      - LE_OK on success
+ *      - LE_BAD_PARAMETER on null of profileIndex
  *      - LE_OVERFLOW if the IP address would not fit in gatewayAddrStr
  *      - LE_FAULT for all other errors
  */
@@ -97,12 +102,19 @@ le_result_t pa_mdc_GetGatewayAddress
                                        responseStr,
                                        sizeof(responseStr));
 
-    if ((res != LE_OK) || (strcmp(responseStr,"OK") != 0))
+    if (res != LE_OK)
     {
         LE_ERROR("Failed to get the final response");
         le_atClient_Delete(cmdRef);
         return res;
     }
+    else if (strcmp(responseStr,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
+    }
+
 
     responseStr[0] = NULL_CHAR;
     // Get First response
