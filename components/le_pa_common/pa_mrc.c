@@ -2162,13 +2162,16 @@ le_result_t pa_mrc_GetPacketSwitchRegState
     le_mrc_NetRegState_t* statePtr  ///< [OUT] The network registration state.
 )
 {
+    int32_t val;
+
     if (!statePtr)
     {
         LE_WARN("One parameter is NULL");
         return LE_BAD_PARAMETER;
     }
 
-    *statePtr = PSState;
+    GetRegistration(PA_MRC_REG_PACKET_SWITCH, false, &val);
+    *statePtr = (le_mrc_NetRegState_t)val;
 
     return LE_OK;
 }
