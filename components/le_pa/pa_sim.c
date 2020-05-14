@@ -462,3 +462,154 @@ le_result_t pa_sim_EnterPIN
     le_atClient_Delete(cmdRef);
     return res;
 }
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to register a handler for SIM Toolkit event notification handling.
+ *
+ * @return A handler reference, which is only needed for later removal of the handler.
+ *
+ * @note Doesn't return on failure, so there's no need to check the return value for errors.
+ */
+//--------------------------------------------------------------------------------------------------
+le_event_HandlerRef_t pa_sim_AddSimToolkitEventHandler
+(
+    pa_sim_SimToolkitEventHdlrFunc_t handler,    ///< [IN] The handler function.
+    void*                            contextPtr  ///< [IN] The context to be given to the handler.
+)
+{
+    /**
+     * It is safe to return a fake reference as this functionality
+     * is not used on all platform, but the function is invoked in
+     * le_sim_Init()
+     */
+    return (le_event_HandlerRef_t) 0x01;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to unregister the handler for SIM Toolkit event notification
+ * handling.
+ *
+ * @note Doesn't return on failure, so there's no need to check the return value for errors.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_sim_RemoveSimToolkitEventHandler
+(
+    le_event_HandlerRef_t handlerRef
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Retrieve the last SIM Toolkit status.
+ *
+ * @return
+ *      - LE_OK             On success.
+ *      - LE_BAD_PARAMETER  A parameter is invalid.
+ *      - LE_UNSUPPORTED    The platform does not support this operation.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_sim_GetLastStkStatus
+(
+    pa_sim_StkEvent_t*  stkStatus  ///< [OUT] last SIM Toolkit event status
+)
+{
+    if (NULL == stkStatus)
+    {
+        return LE_BAD_PARAMETER;
+    }
+
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to open a logical channel on the SIM card.
+ *
+ * @return
+ *      - LE_OK on success
+ *      - LE_FAULT for unexpected error
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_sim_OpenLogicalChannel
+(
+    uint8_t* channelPtr  ///< [OUT] channel number
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to close a logical channel on the SIM card.
+ *
+ * @return
+ *      - LE_OK on success
+ *      - LE_FAULT for unexpected error
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_sim_CloseLogicalChannel
+(
+    uint8_t channel  ///< [IN] channel number
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to send an APDU message to the SIM card.
+ *
+ * @return
+ *      - LE_OK on success
+ *      - LE_OVERFLOW the response length exceed the maximum buffer length.
+ *      - LE_FAULT for unexpected error
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_sim_SendApdu
+(
+    uint8_t        channel, ///< [IN] Logical channel.
+    const uint8_t* apduPtr, ///< [IN] APDU message buffer
+    uint32_t       apduLen, ///< [IN] APDU message length in bytes
+    uint8_t*       respPtr, ///< [OUT] APDU message response.
+    size_t*        lenPtr   ///< [IN,OUT] APDU message response length in bytes.
+)
+{
+    return LE_FAULT;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * This function must be called to send a generic command to the SIM.
+ *
+ * @return
+ *      - LE_OK             Function succeeded.
+ *      - LE_FAULT          The function failed.
+ *      - LE_BAD_PARAMETER  A parameter is invalid.
+ *      - LE_NOT_FOUND      - The function failed to select the SIM card for this operation
+ *                          - The requested SIM file is not found
+ *      - LE_OVERFLOW       Response buffer is too small to copy the SIM answer.
+ *      - LE_UNSUPPORTED    The platform does not support this operation.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_sim_SendCommand
+(
+    le_sim_Command_t command,               ///< [IN] The SIM command
+    const char*      fileIdentifierPtr,     ///< [IN] File identifier
+    uint8_t          p1,                    ///< [IN] Parameter P1 passed to the SIM
+    uint8_t          p2,                    ///< [IN] Parameter P2 passed to the SIM
+    uint8_t          p3,                    ///< [IN] Parameter P3 passed to the SIM
+    const uint8_t*   dataPtr,               ///< [IN] Data command
+    size_t           dataNumElements,       ///< [IN] Size of data command
+    const char*      pathPtr,               ///< [IN] Path of the elementary file
+    uint8_t*         sw1Ptr,                ///< [OUT] SW1 received from the SIM
+    uint8_t*         sw2Ptr,                ///< [OUT] SW2 received from the SIM
+    uint8_t*         responsePtr,           ///< [OUT] SIM response
+    size_t*          responseNumElementsPtr ///< [IN/OUT] Size of response
+)
+{
+    return LE_UNSUPPORTED;
+}
