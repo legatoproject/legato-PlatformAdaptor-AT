@@ -168,6 +168,24 @@ le_result_t pa_sim_SelectCard
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * This function gets sim selection mode.
+ *
+ * @return LE_FAULT         The function failed.
+ * @return LE_TIMEOUT       No response was received.
+ * @return LE_OK            The function succeeded.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t __attribute__((weak)) pa_sim_GetSimMode
+(
+    le_sim_SimMode_t*  simModePtr     ///< [OUT] The SIM selection mode
+)
+{
+    *simModePtr = LE_SIM_FORCE_EXTERNAL;
+    return LE_OK;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * This function get the card on which operations are operated.
  *
  * @return LE_FAULT         The function failed.
