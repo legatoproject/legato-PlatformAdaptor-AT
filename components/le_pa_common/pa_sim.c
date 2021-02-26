@@ -551,7 +551,7 @@ le_result_t pa_sim_Reset
  *      - LE_UNSUPPORTED    The platform does not support this operation.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_sim_WriteFPLMNList
+le_result_t __attribute__((weak)) pa_sim_WriteFPLMNList
 (
     le_dls_List_t *FPLMNListPtr ///< [IN] List of FPLMN operators
 )
@@ -570,7 +570,7 @@ le_result_t pa_sim_WriteFPLMNList
  *      - LE_UNSUPPORTED    The platform does not support this operation.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_sim_CountFPLMNOperators
+le_result_t __attribute__((weak)) pa_sim_CountFPLMNOperators
 (
     uint32_t*  nbItemPtr     ///< [OUT] number of FPLMN operator found if success.
 )
@@ -589,7 +589,7 @@ le_result_t pa_sim_CountFPLMNOperators
  *      - LE_UNSUPPORTED    The platform does not support this operation.
  */
 //--------------------------------------------------------------------------------------------------
-le_result_t pa_sim_ReadFPLMNOperators
+le_result_t __attribute__((weak)) pa_sim_ReadFPLMNOperators
 (
     pa_sim_FPLMNOperator_t* FPLMNOperatorPtr,   ///< [OUT] FPLMN operators.
     uint32_t* FPLMNOperatorCountPtr             ///< [IN/OUT] FPLMN operator count.
