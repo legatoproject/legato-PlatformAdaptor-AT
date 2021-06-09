@@ -5,5 +5,13 @@ sources:
 
 cflags:
 {
-    -I${LEGATO_ROOT}/components/airVantage/platformAdaptor/inc
+    -I${LEGATO_ROOT}/apps/platformServices/airVantageConnector/platformAdaptor/inc
+}
+
+requires:
+{
+    api:
+    {
+        atServices/le_atClient.api
+    }
 }
