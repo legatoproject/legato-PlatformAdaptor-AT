@@ -107,6 +107,13 @@ exit:
             LE_ERROR("Error deleting AT client: %s", LE_RESULT_TXT(result));
         }
     }
+
+    result = le_atClient_Stop(devRef);
+    if (result != LE_OK)
+    {
+        LE_ERROR("Error stopping AT client: %s", LE_RESULT_TXT(result));
+    }
+
     close(fd);
     return result;
 }
