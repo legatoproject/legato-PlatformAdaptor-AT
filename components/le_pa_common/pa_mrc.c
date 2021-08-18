@@ -135,15 +135,12 @@ static pa_mrc_NetworkRegSetting_t RegNotification = PA_MRC_DISABLE_REG_NOTIFICAT
 //--------------------------------------------------------------------------------------------------
 static le_mrc_NetRegState_t PSState = LE_MRC_REG_UNKNOWN;
 
-// TODO:To be cleaned.
-#ifdef LTE_ONLY_TARGET
 //--------------------------------------------------------------------------------------------------
 /**
  * Unsolicited +CEREG references
  */
 //--------------------------------------------------------------------------------------------------
 static le_atClient_UnsolicitedResponseHandlerRef_t UnsolCeregRef = NULL;
-#else
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -151,10 +148,62 @@ static le_atClient_UnsolicitedResponseHandlerRef_t UnsolCeregRef = NULL;
  */
 //--------------------------------------------------------------------------------------------------
 static le_atClient_UnsolicitedResponseHandlerRef_t UnsolCregRef = NULL;
-#endif
 
-// TODO:To be cleaned.
-#ifdef LTE_ONLY_TARGET
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Report new PS state to event loop
+ *
+ * @return none
+ */
+//--------------------------------------------------------------------------------------------------
+static void ReportPSState
+(
+    int stateNum        ///< [IN] State number from URC
+)
+{
+    le_mrc_NetRegState_t  state;
+    le_mrc_NetRegState_t* statePtr;
+
+    switch(stateNum)
+    {
+        case 0:
+            state = LE_MRC_REG_NONE;
+            break;
+        case 1:
+            state = LE_MRC_REG_HOME;
+            break;
+        case 2:
+            state = LE_MRC_REG_SEARCHING;
+            break;
+        case 3:
+            state = LE_MRC_REG_DENIED;
+            break;
+        case 4:
+            state = LE_MRC_REG_UNKNOWN;
+            break;
+        case 5:
+            state = LE_MRC_REG_ROAMING;
+            break;
+        default:
+            state = LE_MRC_REG_UNKNOWN;
+            break;
+    }
+
+    LE_DEBUG("Send Event with state %d", state);
+
+    statePtr = le_mem_ForceAlloc(RegStatePoolRef);
+    *statePtr = state;
+    le_event_ReportWithRefCounting(NetworkRegEventId, statePtr);
+
+    statePtr = le_mem_ForceAlloc(PSStatePoolRef);
+    *statePtr = state;
+    le_event_ReportWithRefCounting(PSStateEventId, statePtr);
+
+    PSState = state;
+}
+
+
 //--------------------------------------------------------------------------------------------------
 /**
  * The handler for a new Network Registration Notification.
@@ -167,8 +216,7 @@ static void CeregUnsolHandler
     void* contextPtr
 )
 {
-    uint32_t              numParam = 0;
-    le_mrc_NetRegState_t* statePtr;
+    uint32_t numParam = 0;
     char unsolStr[LE_ATDEFS_UNSOLICITED_MAX_BYTES];
 
     if(!unsolPtr)
@@ -183,45 +231,14 @@ static void CeregUnsolHandler
 
     if (numParam >= 2)
     {
-        statePtr = le_mem_ForceAlloc(RegStatePoolRef);
-        switch(atoi(pa_utils_IsolateLineParameter(unsolPtr,2)))
-        {
-            case 0:
-                *statePtr = LE_MRC_REG_NONE;
-                break;
-            case 1:
-                *statePtr = LE_MRC_REG_HOME;
-                break;
-            case 2:
-                *statePtr = LE_MRC_REG_SEARCHING;
-                break;
-            case 3:
-                *statePtr = LE_MRC_REG_DENIED;
-                break;
-            case 4:
-                *statePtr = LE_MRC_REG_UNKNOWN;
-                break;
-            case 5:
-                *statePtr = LE_MRC_REG_ROAMING;
-                break;
-            default:
-                *statePtr = LE_MRC_REG_UNKNOWN;
-                break;
-        }
-        LE_DEBUG("Send Event with state %d",*statePtr);
-        PSState = *statePtr;
-        le_event_ReportWithRefCounting(NetworkRegEventId,statePtr);
-        statePtr = le_mem_ForceAlloc(PSStatePoolRef);
-        *statePtr = PSState;
-        le_event_ReportWithRefCounting(PSStateEventId,statePtr);
+        ReportPSState(atoi(pa_utils_IsolateLineParameter(unsolPtr, 2)));
     }
     else
     {
-        LE_WARN("this Response pattern is not expected -%s-",unsolStr);
+        LE_WARN("this Response pattern is not expected -%s-", unsolStr);
     }
 }
 
-#else
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -235,87 +252,29 @@ static void CregUnsolHandler
     void* contextPtr
 )
 {
-    uint32_t              numParam = 0;
-    le_mrc_NetRegState_t* statePtr;
+    uint32_t numParam = 0;
+    char unsolStr[LE_ATDEFS_UNSOLICITED_MAX_BYTES];
 
+    LE_UNUSED(contextPtr);
+    LE_ASSERT(unsolPtr);
+
+    strncpy(unsolStr, unsolPtr, LE_ATDEFS_UNSOLICITED_MAX_BYTES);
     numParam = pa_utils_CountAndIsolateLineParameters((char*) unsolPtr);
+    LE_INFO("CregUnsolHandler mode(%d) nb(%d) [%s]", (int)RegNotification, (int)numParam, unsolStr);
 
-    if (RegNotification == PA_MRC_ENABLE_REG_NOTIFICATION)
+    // Use numParam for recognizing a valid reg URC rather than checking RegNotification, as PA
+    // cannot monitor the update from extra execution of AT+CREG=n in AT port by remote, thus
+    // RegNotification is not always up-to-date.
+    if (numParam >= 2)
     {
-        if (numParam == 2)
-        {
-            statePtr = le_mem_ForceAlloc(RegStatePoolRef);
-            switch(atoi(pa_utils_IsolateLineParameter(unsolPtr,2)))
-            {
-                case 0:
-                    *statePtr = LE_MRC_REG_NONE;
-                    break;
-                case 1:
-                    *statePtr = LE_MRC_REG_HOME;
-                    break;
-                case 2:
-                    *statePtr = LE_MRC_REG_SEARCHING;
-                    break;
-                case 3:
-                    *statePtr = LE_MRC_REG_DENIED;
-                    break;
-                case 4:
-                    *statePtr = LE_MRC_REG_UNKNOWN;
-                    break;
-                case 5:
-                    *statePtr = LE_MRC_REG_ROAMING;
-                    break;
-                default:
-                    *statePtr = LE_MRC_REG_UNKNOWN;
-                    break;
-            }
-            PSState = *statePtr;
-            le_event_ReportWithRefCounting(NetworkRegEventId,statePtr);
-        }
-        else
-        {
-            LE_WARN("this Response pattern is not expected -%s-",unsolPtr);
-        }
+        ReportPSState(atoi(pa_utils_IsolateLineParameter(unsolPtr, 2)));
     }
-    else if (RegNotification == PA_MRC_ENABLE_REG_LOC_NOTIFICATION)
+    else
     {
-        if (numParam == 5)
-        {
-            statePtr = le_mem_ForceAlloc(RegStatePoolRef);
-            switch(atoi(pa_utils_IsolateLineParameter(unsolPtr,2)))
-            {
-                case 0:
-                    *statePtr = LE_MRC_REG_NONE;
-                    break;
-                case 1:
-                    *statePtr = LE_MRC_REG_HOME;
-                    break;
-                case 2:
-                    *statePtr = LE_MRC_REG_SEARCHING;
-                    break;
-                case 3:
-                    *statePtr = LE_MRC_REG_DENIED;
-                    break;
-                case 4:
-                    *statePtr = LE_MRC_REG_UNKNOWN;
-                    break;
-                case 5:
-                    *statePtr = LE_MRC_REG_ROAMING;
-                    break;
-                default:
-                    *statePtr = LE_MRC_REG_UNKNOWN;
-                    break;
-            }
-            PSState = *statePtr;
-            le_event_ReportWithRefCounting(NetworkRegEventId,statePtr);
-        }
-        else
-        {
-            LE_WARN("this Response pattern is not expected -%s-",unsolPtr);
-        }
+        LE_WARN("this Response pattern is not expected -%s-", unsolStr);
     }
 }
-#endif
+
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -328,42 +287,43 @@ static void SubscribeUnsolCreg
     pa_mrc_NetworkRegSetting_t  mode ///< [IN] The selected Network registration mode.
 )
 {
-    // TODO:To be cleaned. At init, neither +KSRAT or at+creg? are ready to determine the RAT for
-    // setting the correct UnsolicitedResponseHandler. UnsolicitedResponseHandler is set for LTE to
-    // be compatible with previous products.
-#ifdef LTE_ONLY_TARGET
-    if (UnsolCeregRef)
+    if (!pa_mrc_local_IsGSMMode())
     {
-        le_atClient_RemoveUnsolicitedResponseHandler(UnsolCeregRef);
-        UnsolCeregRef = NULL;
-    }
+        if (UnsolCeregRef)
+        {
+            le_atClient_RemoveUnsolicitedResponseHandler(UnsolCeregRef);
+            UnsolCeregRef = NULL;
+        }
 
-    if ((PA_MRC_ENABLE_REG_NOTIFICATION == mode) ||
-        (PA_MRC_ENABLE_REG_LOC_NOTIFICATION) == mode)
-    {
-        UnsolCeregRef = le_atClient_AddUnsolicitedResponseHandler(pa_mrc_local_GetRegisterUnso(),
-                                                                  pa_utils_GetAtDeviceRef(),
-                                                                  CeregUnsolHandler,
-                                                                  NULL,
-                                                                  1);
+        if ((PA_MRC_ENABLE_REG_NOTIFICATION == mode) ||
+            (PA_MRC_ENABLE_REG_LOC_NOTIFICATION) == mode)
+        {
+            UnsolCeregRef = le_atClient_AddUnsolicitedResponseHandler(
+                                pa_mrc_local_GetRegisterUnso(),
+                                pa_utils_GetAtDeviceRef(),
+                                CeregUnsolHandler,
+                                NULL,
+                                1);
+        }
     }
-#else
-    if (UnsolCregRef)
+    else
     {
-        le_atClient_RemoveUnsolicitedResponseHandler(UnsolCregRef);
-        UnsolCregRef = NULL;
-    }
+        if (UnsolCregRef)
+        {
+            le_atClient_RemoveUnsolicitedResponseHandler(UnsolCregRef);
+            UnsolCregRef = NULL;
+        }
 
-    if ((PA_MRC_ENABLE_REG_NOTIFICATION == mode) ||
-        (PA_MRC_ENABLE_REG_LOC_NOTIFICATION) == mode)
-    {
-        UnsolCregRef = le_atClient_AddUnsolicitedResponseHandler(  "+CREG:",
-                                                                    pa_utils_GetAtDeviceRef(),
-                                                                    CregUnsolHandler,
-                                                                    NULL,
-                                                                    1   );
+        if ((PA_MRC_ENABLE_REG_NOTIFICATION == mode) ||
+            (PA_MRC_ENABLE_REG_LOC_NOTIFICATION) == mode)
+        {
+            UnsolCregRef = le_atClient_AddUnsolicitedResponseHandler("+CREG:",
+                                                                     pa_utils_GetAtDeviceRef(),
+                                                                     CregUnsolHandler,
+                                                                     NULL,
+                                                                     1);
+        }
     }
-#endif
 }
 
 //--------------------------------------------------------------------------------------------------

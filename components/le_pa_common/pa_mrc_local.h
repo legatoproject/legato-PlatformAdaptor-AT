@@ -243,4 +243,18 @@ LE_SHARED le_result_t pa_mrc_local_ConvertActToRat
     le_mrc_Rat_t*   ratPtr      ///< [OUT] The Radio Access Technology.
 );
 
+//--------------------------------------------------------------------------------------------------
+/**
+ * Check if the current device RAT is configured in GSM
+ *
+ * @return
+        - true      If currently configured in GSM mode
+        - false     Otherwise
+ */
+//--------------------------------------------------------------------------------------------------
+LE_SHARED bool pa_mrc_local_IsGSMMode
+(
+    void
+);
+
 #endif // LEGATO_PAMRCLOCAL_INCLUDE_GUARD
