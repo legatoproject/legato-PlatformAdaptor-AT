@@ -39,13 +39,6 @@ le_result_t pa_avc_SetEdmPollingTimerInSeconds
     int fd = open("/dev/ttyAT", O_RDWR | O_NOCTTY | O_NONBLOCK);
     devRef = le_atClient_Start(fd);
     le_atClient_CmdRef_t cmdRef;
-    cmdRef = le_atClient_Create();
-    result = le_atClient_SetDevice(cmdRef, devRef);
-    if (result != LE_OK)
-    {
-        LE_ERROR("Error setting AT client device: %s", LE_RESULT_TXT(result));
-        goto exit;
-    }
 
     // Send the command: AT+DRCC=0,T where T is periodic session time in minutes.
     char cmdBuf[64] = {0};
@@ -56,7 +49,7 @@ le_result_t pa_avc_SetEdmPollingTimerInSeconds
                                            cmdBuf,
                                            "",
                                            "OK|ERROR|+CME ERROR",
-                                           5000);
+                                           1000);
     if (result != LE_OK)
     {
         /* A timeout is a result of the modem not supporting this command. We will
