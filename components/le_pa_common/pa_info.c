@@ -227,6 +227,109 @@ le_result_t pa_info_GetFirmwareVersion
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Get the TEE (Trusted Execution Environment) version string
+ *
+ * @return
+ *      - LE_OK on success
+ *      - LE_BAD_PARAMETER The parameters are invalid.
+ *      - LE_NOT_FOUND if the version string is not available
+ *      - LE_FAULT for any other errors
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_info_GetTeeVersion
+(
+    char*  versionPtr,       ///< [OUT] TEE version string.
+    size_t versionSize       ///< [IN] Size of version buffer.
+)
+{
+    le_atClient_CmdRef_t cmdRef = NULL;
+    le_result_t          res    = LE_OK;
+    bool                 tee_found = false;
+    char                 intermediateResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+    char                 finalResponse[LE_ATDEFS_RESPONSE_MAX_BYTES];
+
+    if (!versionPtr)
+    {
+        LE_DEBUG("One parameter is NULL");
+        return LE_BAD_PARAMETER;
+    }
+
+    res = le_atClient_SetCommandAndSend(&cmdRef,
+                                        pa_utils_GetAtDeviceRef(),
+                                        "AT%VER",
+                                        "",
+                                        DEFAULT_AT_RESPONSE,
+                                        DEFAULT_AT_CMD_TIMEOUT);
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to send the command");
+        return res;
+    }
+
+    res = le_atClient_GetFinalResponse(cmdRef,
+                                       finalResponse,
+                                       LE_ATDEFS_RESPONSE_MAX_BYTES);
+
+    if (res != LE_OK)
+    {
+        LE_ERROR("Failed to get the response");
+        le_atClient_Delete(cmdRef);
+        return res;
+    }
+    else if (strcmp(finalResponse,"OK") != 0)
+    {
+        LE_ERROR("Final response is not OK");
+        le_atClient_Delete(cmdRef);
+        return LE_FAULT;
+    }
+
+    res = le_atClient_GetFirstIntermediateResponse(cmdRef,
+                                                   intermediateResponse,
+                                                   LE_ATDEFS_RESPONSE_MAX_BYTES);
+
+    while(res == LE_OK)
+    {
+        char* tokenPtr = strstr(intermediateResponse, "AISE Package");
+        if (tokenPtr)
+        {
+            tokenPtr = strstr(tokenPtr, ": ");
+            if (tokenPtr)
+            {
+                tokenPtr += strlen(": ");
+            }
+            if (tokenPtr)
+            {
+                // replace '_' to '.'
+                char find = '_';
+                char replace = '.';
+                char *current_pos = strchr(tokenPtr, find);
+                while (current_pos)
+                {
+                    *current_pos = replace;
+                    current_pos = strchr(current_pos, find);
+                }
+                char* offset2 = strstr(tokenPtr, "AISE Build Time: ");
+                if (NULL != offset2)
+                {
+                    if((offset2 - tokenPtr) < versionSize)
+                    {
+                        snprintf (versionPtr, offset2 - tokenPtr, tokenPtr);
+                        tee_found = true;
+                    }
+                }
+            }
+        }
+        res = le_atClient_GetNextIntermediateResponse(cmdRef,
+                                                    intermediateResponse,
+                                                    LE_ATDEFS_RESPONSE_MAX_BYTES);
+    }
+
+    le_atClient_Delete(cmdRef);
+    return tee_found==true?LE_OK:LE_NOT_FOUND;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Get the bootloader version string.
  *
  * @return
