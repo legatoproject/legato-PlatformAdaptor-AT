@@ -23,26 +23,6 @@ static const char RegisterUnsolicited[] = "+CEREG";
 
 //--------------------------------------------------------------------------------------------------
 /**
- * Check if the current device RAT is configured in GSM
- *
- * @return
-        - true      If currently configured in GSM mode
-        - false     Otherwise
- */
-//--------------------------------------------------------------------------------------------------
-bool pa_mrc_local_IsGSMMode
-(
-    void
-)
-{
-#ifdef LTE_ONLY_TARGET
-    return false;
-#else
-    return true;
-#endif
-}
-//--------------------------------------------------------------------------------------------------
-/**
  * This function configures the Network registration setting.
  *
  * @return LE_FAULT         The function failed.
