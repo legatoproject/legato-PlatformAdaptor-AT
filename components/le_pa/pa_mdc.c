@@ -1312,6 +1312,24 @@ le_result_t pa_mdc_GetDataFlowStatistics
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Get data flow since the last reset without data counter statistics.
+ *
+ * @return
+ *      - LE_OK on success
+ *      - LE_FAULT for all other errors
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_mdc_GetDataFlow_without_Statistics
+(
+    pa_mdc_PktStatistics_t* dataPtr   ///< [OUT] data
+)
+{
+    memset(dataPtr,0,sizeof(*dataPtr));
+    return LE_OK;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Reset data flow statistics
  *
  * * @return
