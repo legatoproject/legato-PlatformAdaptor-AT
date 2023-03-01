@@ -44,4 +44,7 @@ cflags:
     -I$LEGATO_ROOT/interfaces/atServices
     -I$CURDIR/../le_pa_utils
     -I$LEGATO_ROOT/interfaces/modemServices
+#if ${MK_CONFIG_MRC_LISTEN_ATSWI_READY} = y
+    -I${MAP_SRC_PATH}/apps/swi_libs
+#endif
 }

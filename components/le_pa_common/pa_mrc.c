@@ -10,6 +10,9 @@
 #include "pa_mrc.h"
 #include "pa_utils.h"
 #include "pa_mrc_local.h"
+#ifdef MK_CONFIG_MRC_LISTEN_ATSWI_READY
+#include "signals/signals.h"
+#endif
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -142,6 +145,39 @@ static le_mrc_NetRegState_t PSState = LE_MRC_REG_UNKNOWN;
 //--------------------------------------------------------------------------------------------------
 static le_atClient_UnsolicitedResponseHandlerRef_t UnsolCeregRef = NULL;
 
+#ifdef MK_CONFIG_MRC_LISTEN_ATSWI_READY
+//--------------------------------------------------------------------------------------------------
+/**
+ * Callback for AtSwi ready
+ *
+ * @return none
+ */
+//--------------------------------------------------------------------------------------------------
+static void AtSwiReadyHandlerFunc(const sig_event_msg_t * const psig_event_msg)
+{
+    if ( psig_event_msg != NULL )
+    {
+        switch ( psig_event_msg->sig_usr_event )
+        {
+            case SIG_ATCMD_READY:
+                if ( psig_event_msg->logportApp == LEGATO )
+                {
+                    le_mrc_NetRegState_t* stateArgPtr = (le_mrc_NetRegState_t*)
+                                                        psig_event_msg->user_arg;
+                    le_mrc_NetRegState_t* statePtr = le_mem_ForceAlloc(RegStatePoolRef);
+                    *statePtr = *stateArgPtr;
+                    LE_INFO("AtSwiReadyHandlerFunc state = %d", *stateArgPtr);
+                    le_event_ReportWithRefCounting(NetworkRegEventId, statePtr);
+                }
+                break;
+            case SIG_ATCMD_REG_FAILURE:
+                break;
+            default:
+                break;
+        }
+    }
+}
+#endif
 
 //--------------------------------------------------------------------------------------------------
 /**
@@ -187,6 +223,25 @@ static void ReportNetworkPSStateUpdate
 
     statePtr = le_mem_ForceAlloc(RegStatePoolRef);
     *statePtr = state;
+
+#ifdef MK_CONFIG_MRC_LISTEN_ATSWI_READY
+    // Workaround AtSwi not ready but report NetworkRegEventId event
+    static le_mrc_NetRegState_t atswi_ready_state = LE_MRC_REG_NONE;
+    if(state == LE_MRC_REG_HOME || state == LE_MRC_REG_ROAMING)
+    {
+        if (LE_MRC_REG_NONE == atswi_ready_state)
+        {
+            atswi_ready_state = state;
+            sig_client_id sig_swi_id = sig_event_cb_register(SIGUSR, AtSwiReadyHandlerFunc,
+                                                             (void*)&atswi_ready_state);
+            if ( sig_swi_id < 0 )
+            {
+                LE_ERROR("SIGUSR signal event registration error");
+            }
+        }
+    }
+#endif
+
     le_event_ReportWithRefCounting(NetworkRegEventId, statePtr);
 
     statePtr = le_mem_ForceAlloc(PSStatePoolRef);
