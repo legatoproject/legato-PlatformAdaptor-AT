@@ -98,3 +98,41 @@ le_result_t  pa_info_GetPlatformSerialNumber
 {
     return LE_FAULT;
 }
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get Build time string in ASCII text.
+ *
+ * @return
+ *      - LE_OK            The function succeeded.
+ *      - LE_FAULT         The function failed to get the value.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_info_GetBuildTime
+(
+    char*  buildTime,    ///< [OUT] Build time buffer string.
+    size_t size          ///< [IN]  size of buildTime buffer.
+)
+{
+    LE_ERROR("Not implemented function called");
+    return LE_NOT_IMPLEMENTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get Product Name string in ASCII text.
+ *
+ * @return
+ *      - LE_OK            The function succeeded.
+ *      - LE_FAULT         The function failed to get the value.
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_info_GetProductName
+(
+    char*  prodName,    ///< [OUT] Buffer to retrieve/store product name.
+    size_t size         ///< [IN]  Buffer size.
+)
+{
+    LE_ERROR("Not implemented function called");
+    return LE_NOT_IMPLEMENTED;
+}
