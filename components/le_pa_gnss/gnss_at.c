@@ -583,6 +583,44 @@ le_result_t pa_gnss_GetConstellationArea
 
 //--------------------------------------------------------------------------------------------------
 /**
+ * Set the GNSS static filter
+ *
+ * @return
+ *  - LE_OK on success
+ *  - LE_FAULT on failure
+ *  - LE_UNSUPPORTED request not supported
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_SetStaticFilter
+(
+    le_gnss_StaticFilter_t staticFilterVal  ///< [IN] enum type to disable/enable the filter
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
+ * Get the GNSS static filter setting
+ *
+ * @return
+ *  - LE_OK on success
+ *  - LE_FAULT on failure
+ *  - LE_UNSUPPORTED request not supported
+ */
+//--------------------------------------------------------------------------------------------------
+le_result_t pa_gnss_GetStaticFilter
+(
+    le_gnss_StaticFilter_t* staticFilterVal  ///< [OUT] enum type of the disabled/enabled status
+)
+{
+    LE_ERROR("Unsupported function called");
+    return LE_UNSUPPORTED;
+}
+
+//--------------------------------------------------------------------------------------------------
+/**
  * Enables the EXT_GPS_LNA_EN signal
  *
  * @return LE_OK               Function succeeded.
