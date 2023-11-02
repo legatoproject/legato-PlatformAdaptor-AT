@@ -10,6 +10,11 @@
 #include "legato.h"
 
 #include "pa_mdc.h"
+
+#ifdef MK_ATPROXY_CONFIG_CLIB
+#include "le_atClientIF.h"
+#endif
+
 #include "pa_utils.h"
 #include "pa_mdc_local.h"
 #include "pa_mdc_utils_local.h"
@@ -40,6 +45,7 @@ static le_result_t GetIpv6DefaultGateway
     size_t                  gatewayAddrStrSize ///< [IN]  The size in bytes of the address buffer
 )
 {
+    LE_UNUSED(profileIndex);
     le_result_t res;
     res = le_utf8_Copy(gatewayAddrStr, "::", gatewayAddrStrSize, NULL);
     LE_WARN("Default IPV6 Gw %s", gatewayAddrStr);
@@ -204,6 +210,7 @@ le_result_t pa_mdc_RejectMtPdpSession
     uint32_t profileIndex
 )
 {
+    LE_UNUSED(profileIndex);
     return LE_FAULT;
 }
 
@@ -244,8 +251,8 @@ le_result_t pa_mdc_GetSessionType
     le_result_t ipv6Res = LE_FAULT;
     char addr[50];
 
-    ipv4Res = pa_mdc_GetIPAddress(profileIndex, PA_MDC_SESSION_IPV4, addr, sizeof(addr));
-    ipv6Res = pa_mdc_GetIPAddress(profileIndex, PA_MDC_SESSION_IPV6, addr, sizeof(addr));
+    ipv4Res = pa_mdc_GetIPAddress(profileIndex, (le_mdmDefs_IpVersion_t)PA_MDC_SESSION_IPV4, addr, sizeof(addr));
+    ipv6Res = pa_mdc_GetIPAddress(profileIndex, (le_mdmDefs_IpVersion_t)PA_MDC_SESSION_IPV6, addr, sizeof(addr));
 
     if((LE_OK == ipv4Res) && (LE_OK == ipv6Res))
     {
@@ -284,6 +291,9 @@ le_result_t pa_mdc_MapProfileOnNetworkInterface
     const char*      interfaceNamePtr      ///< [IN] Network interface name
 )
 {
+    LE_UNUSED(profileIndex);
+    LE_UNUSED(interfaceNamePtr);
+
     return LE_UNSUPPORTED;
 }
 
@@ -302,6 +312,9 @@ le_result_t pa_mdc_GetProfileList
     size_t* listSize                   ///< [INOUT] list size
 )
 {
+    LE_UNUSED(profileList);
+    LE_UNUSED(listSize);
+
     LE_ERROR("Unsupported function called");
     return LE_UNSUPPORTED;
 }

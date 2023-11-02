@@ -6,9 +6,11 @@ requires:
         le_mdc.api        [types-only]
         le_mrc.api        [types-only]
         le_sim.api        [types-only]
+        le_info.api       [types-only]
+#if ${MK_CONFIG_THIN_MODEM} = y
+#else
         le_sms.api        [types-only]
         le_ecall.api      [types-only]
-        le_info.api       [types-only]
         le_ips.api        [types-only]
         le_temp.api       [types-only]
         le_antenna.api    [types-only]
@@ -16,6 +18,7 @@ requires:
         le_rtc.api        [types-only]
         le_lpt.api        [types-only]
         le_atClient.api
+#endif
     }
 
     component:
@@ -28,7 +31,12 @@ sources:
 {
     pa_at_common.c
     pa_info.c
+
+#if ${MK_CONFIG_THIN_MODEM} = y
+#else
     pa_ips.c
+#endif
+
     pa_mdc.c
     pa_mrc.c
     pa_sim.c

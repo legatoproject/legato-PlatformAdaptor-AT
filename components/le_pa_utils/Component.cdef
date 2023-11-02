@@ -2,7 +2,10 @@ requires:
 {
     api:
     {
+#if ${MK_ATPROXY_CONFIG_CLIB} = y
+#else
         le_atClient.api
+#endif
     }
 }
 

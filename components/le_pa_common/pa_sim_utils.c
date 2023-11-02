@@ -8,6 +8,10 @@
 #include "legato.h"
 #include "interfaces.h"
 
+#ifdef MK_ATPROXY_CONFIG_CLIB
+#include "le_atClientIF.h"
+#endif
+
 #include "pa_utils.h"
 #include "pa_sim_utils_local.h"
 

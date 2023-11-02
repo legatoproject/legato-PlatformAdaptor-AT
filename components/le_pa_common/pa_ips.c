@@ -28,6 +28,7 @@ le_result_t pa_ips_GetInputVoltage
     uint32_t* inputVoltagePtr   ///< [OUT] The input voltage in [mV]
 )
 {
+    LE_UNUSED(inputVoltagePtr);
     return LE_FAULT;
 }
 
@@ -44,6 +45,7 @@ le_event_HandlerRef_t* pa_ips_AddVoltageEventHandler
     pa_ips_ThresholdInd_HandlerFunc_t   msgHandler
 )
 {
+    LE_UNUSED(msgHandler);
     return NULL;
 }
 
@@ -67,6 +69,10 @@ le_result_t pa_SetVoltageThresholds
     uint16_t hiCriticalVolt     ///< [IN] The high critical input voltage threshold in [mV]
 )
 {
+    LE_UNUSED(criticalVolt);
+    LE_UNUSED(warningVolt);
+    LE_UNUSED(normalVolt);
+    LE_UNUSED(hiCriticalVolt);
     return LE_FAULT;
 }
 
@@ -87,6 +93,11 @@ le_result_t pa_GetVoltageThresholds
     uint16_t* hiCriticalVoltPtr     ///< [IN/OUT] The high critical input voltage threshold in [mV]
 )
 {
+    LE_UNUSED(criticalVoltPtr);
+    LE_UNUSED(warningVoltPtr);
+    LE_UNUSED(normalVoltPtr);
+    LE_UNUSED(hiCriticalVoltPtr);
+
     return LE_FAULT;
 }
 

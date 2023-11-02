@@ -5,6 +5,12 @@
 
 #include "legato.h"
 #include "interfaces.h"
+
+#ifdef MK_ATPROXY_CONFIG_CLIB
+#include "le_atClientIF.h"
+#include "atServerIF.h"
+#endif
+
 #include "pa_utils.h"
 
 //--------------------------------------------------------------------------------------------------
@@ -218,7 +224,7 @@ void pa_utils_RemoveQuotationString
         {
             if ('"' == stringToParsePtr[0])
             {
-                strncpy(stringToParsePtr, stringToParsePtr+1, stringlen);
+                strlcpy(stringToParsePtr, stringToParsePtr+1, stringlen);
                 if ('"' == stringToParsePtr[stringlen-2])
                 {
                     stringToParsePtr[stringlen-2] = NULL_CHAR;

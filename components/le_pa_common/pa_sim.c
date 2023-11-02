@@ -10,6 +10,12 @@
 #include "interfaces.h"
 
 #include "pa_sim.h"
+
+#ifdef MK_ATPROXY_CONFIG_CLIB
+#include "le_atClientIF.h"
+#include "atServerIF.h"
+#endif
+
 #include "pa_utils.h"
 #include "pa_sim_utils_local.h"
 
@@ -31,6 +37,9 @@ static le_result_t pa_sim_GetRemainingAttempts
     uint32_t* attemptsPtr  ///< [OUT] The number of attempts still possible
 )
 {
+    LE_UNUSED(idx);
+    LE_UNUSED(attemptsPtr);
+
     return LE_FAULT;
 }
 
@@ -141,6 +150,8 @@ le_result_t pa_sim_GetCardEID
    pa_sim_Eid_t eid               ///< [OUT] the EID value
 )
 {
+    LE_UNUSED(eid);
+
     LE_ERROR("Unsupported function called");
     return LE_UNSUPPORTED;
 }
@@ -519,6 +530,7 @@ le_result_t pa_sim_ConfirmSimToolkitCommand
     bool  confirmation  ///< [IN] true to accept, false to reject
 )
 {
+    LE_UNUSED(confirmation);
     return LE_FAULT;
 }
 
@@ -556,6 +568,7 @@ le_result_t __attribute__((weak)) pa_sim_WriteFPLMNList
     le_dls_List_t *FPLMNListPtr ///< [IN] List of FPLMN operators
 )
 {
+    LE_UNUSED(FPLMNListPtr);
     return LE_UNSUPPORTED;
 }
 
@@ -575,6 +588,7 @@ le_result_t __attribute__((weak)) pa_sim_CountFPLMNOperators
     uint32_t*  nbItemPtr     ///< [OUT] number of FPLMN operator found if success.
 )
 {
+    LE_UNUSED(nbItemPtr);
     return LE_UNSUPPORTED;
 }
 
@@ -595,6 +609,9 @@ le_result_t __attribute__((weak)) pa_sim_ReadFPLMNOperators
     uint32_t* FPLMNOperatorCountPtr             ///< [IN/OUT] FPLMN operator count.
 )
 {
+    LE_UNUSED(FPLMNOperatorPtr);
+    LE_UNUSED(FPLMNOperatorCountPtr);
+
     return LE_UNSUPPORTED;
 }
 
@@ -613,6 +630,7 @@ le_result_t pa_sim_SetAutomaticSelection
     bool    enable    ///< [IN] True if the feature needs to be enabled. False otherwise.
 )
 {
+    LE_UNUSED(enable);
     return LE_UNSUPPORTED;
 }
 
@@ -632,6 +650,7 @@ le_result_t pa_sim_GetAutomaticSelection
     bool*    enablePtr    ///< [OUT] True if the feature is enabled. False otherwise.
 )
 {
+    LE_UNUSED(enablePtr);
     return LE_UNSUPPORTED;
 }
 
@@ -655,6 +674,7 @@ le_result_t pa_sim_EnterPUK
     const pa_sim_Pin_t pin   ///< [IN] new PIN code
 )
 {
+    LE_UNUSED(type);
     char                 command[LE_ATDEFS_COMMAND_MAX_BYTES];
     le_atClient_CmdRef_t cmdRef = NULL;
     le_result_t          res    = LE_OK;

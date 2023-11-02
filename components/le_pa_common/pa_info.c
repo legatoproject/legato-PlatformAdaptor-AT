@@ -9,6 +9,12 @@
 #include "legato.h"
 #include "interfaces.h"
 #include "pa_info.h"
+
+#ifdef MK_ATPROXY_CONFIG_CLIB
+#include "le_atClientIF.h"
+#include "atServerIF.h"
+#endif
+
 #include "pa_utils.h"
 
 //--------------------------------------------------------------------------------------------------
@@ -344,6 +350,8 @@ le_result_t pa_info_GetBootloaderVersion
     size_t versionSize       ///< [IN] Size of version buffer.
 )
 {
+    LE_UNUSED(versionPtr);
+    LE_UNUSED(versionSize);
     return LE_FAULT;
 }
 
@@ -435,6 +443,9 @@ le_result_t pa_info_GetMeid
     size_t meidStrSize       ///< [IN] Size of version buffer.
 )
 {
+    LE_UNUSED(meidStr);
+    LE_UNUSED(meidStrSize);
+
     return LE_FAULT;
 }
 
@@ -455,6 +466,8 @@ le_result_t pa_info_GetMin
     size_t       minStrSize     ///< [IN]  Size of phoneNumberStr.
 )
 {
+    LE_UNUSED(minStr);
+    LE_UNUSED(minStrSize);
     return LE_FAULT;
 }
 
@@ -476,6 +489,9 @@ le_result_t pa_info_GetEsn
     size_t esnStrNumElements  ///< [IN] Size of Electronic Serial Number string.
 )
 {
+    LE_UNUSED(esnStr);
+    LE_UNUSED(esnStrNumElements);
+
     return LE_FAULT;
 }
 
@@ -493,6 +509,7 @@ le_result_t pa_info_GetPrlVersion
     uint16_t* prlVersionPtr   ///< [OUT] The Preferred Roaming List (PRL) version.
 )
 {
+    LE_UNUSED(prlVersionPtr);
     return LE_FAULT;
 }
 
@@ -512,6 +529,7 @@ le_result_t pa_info_GetPrlOnlyPreference
     bool* prlOnlyPreferencePtr   ///< The Cdma PRL only preferences status.
 )
 {
+    LE_UNUSED(prlOnlyPreferencePtr);
     return LE_FAULT;
 }
 
@@ -533,6 +551,9 @@ le_result_t pa_info_GetNai
     size_t naiStrNumElements  ///< [IN] Size of Network Access Identifier string.
 )
 {
+    LE_UNUSED(naiStr);
+    LE_UNUSED(naiStrNumElements);
+
     return LE_FAULT;
 }
 
@@ -628,6 +649,8 @@ le_result_t pa_info_GetSku
 
 )
 {
+    LE_UNUSED(skuIdStr);
+    LE_UNUSED(skuIdStrNumElements);
     LE_ERROR("Unsupported function called");
     return LE_FAULT;
 }
@@ -670,6 +693,13 @@ le_result_t pa_info_GetRfDeviceStatus
         ///< [INOUT]
 )
 {
+    LE_UNUSED(manufacturedIdPtr);
+    LE_UNUSED(manufacturedIdNumElementsPtr);
+    LE_UNUSED(productIdPtr);
+    LE_UNUSED(productIdNumElementsPtr);
+    LE_UNUSED(statusPtr);
+    LE_UNUSED(statusNumElementsPtr);
+
     LE_ERROR("Unsupported function called");
     return LE_UNSUPPORTED;
 }

@@ -7,6 +7,12 @@
 
 #include "legato.h"
 #include "interfaces.h"
+
+#ifdef MK_ATPROXY_CONFIG_CLIB
+#include "le_atClientIF.h"
+#include "atServerIF.h"
+#endif
+
 #include "pa_mrc.h"
 #include "pa_utils.h"
 #include "pa_mrc_local.h"
@@ -264,6 +270,8 @@ static void CeregUnsolHandler
     void* contextPtr
 )
 {
+    LE_UNUSED(contextPtr);
+
     uint32_t numParam = 0;
     char unsolStr[LE_ATDEFS_UNSOLICITED_MAX_BYTES];
 
@@ -310,12 +318,14 @@ static void SubscribeUnsolCreg
     if ((PA_MRC_ENABLE_REG_NOTIFICATION == mode) ||
         (PA_MRC_ENABLE_REG_LOC_NOTIFICATION) == mode)
     {
+
         UnsolCeregRef = le_atClient_AddUnsolicitedResponseHandler(
             pa_mrc_local_GetRegisterUnso(),
             pa_utils_GetAtDeviceRef(),
             CeregUnsolHandler,
             NULL,
             1);
+
     }
 }
 
@@ -740,6 +750,8 @@ le_result_t pa_mrc_RegisterNetwork
     const char *mncPtr    ///< [IN] Mobile Network Code
 )
 {
+    LE_UNUSED(mccPtr);
+    LE_UNUSED(mncPtr);
     return LE_FAULT;
 }
 
@@ -791,6 +803,10 @@ le_result_t pa_mrc_GetScanInformationName
     size_t                    nameSize              ///< [IN] The size in bytes of the namePtr buffer
 )
 {
+    LE_UNUSED(scanInformationPtr);
+    LE_UNUSED(namePtr);
+    LE_UNUSED(nameSize);
+
     return LE_FAULT;
 }
 
@@ -812,6 +828,9 @@ le_event_HandlerRef_t pa_mrc_AddNetworkRejectIndHandler
                                                                ///< the handler.
 )
 {
+    LE_UNUSED(contextPtr);
+    LE_UNUSED(networkRejectIndHandler);
+
     return NULL;
 }
 
@@ -826,6 +845,7 @@ void pa_mrc_RemoveNetworkRejectIndHandler
     le_event_HandlerRef_t handlerRef
 )
 {
+    LE_UNUSED(handlerRef);
     return;
 }
 
@@ -963,6 +983,7 @@ le_event_HandlerRef_t pa_mrc_SetRatChangeHandler
     pa_mrc_RatChangeHdlrFunc_t handlerFuncPtr ///< [IN] The handler function.
 )
 {
+    LE_UNUSED(handlerFuncPtr);
     return NULL;
 }
 
@@ -979,6 +1000,7 @@ void pa_mrc_RemoveRatChangeHandler
     le_event_HandlerRef_t handlerRef
 )
 {
+    LE_UNUSED(handlerRef);
     return;
 }
 
@@ -1063,6 +1085,8 @@ le_result_t pa_mrc_SetSignalStrengthIndDelta
     uint16_t     delta   ///< [IN] Signal delta in units of 0.1 dB
 )
 {
+    LE_UNUSED(delta);
+
     switch(rat)
     {
         case LE_MRC_RAT_GSM:
@@ -1092,6 +1116,7 @@ void pa_mrc_RemovePSChangeHandler
     le_event_HandlerRef_t handlerRef
 )
 {
+    LE_UNUSED(handlerRef);
     LE_WARN("Unsupported function called");
 }
 
@@ -1111,6 +1136,8 @@ le_event_HandlerRef_t pa_mrc_AddSignalStrengthIndHandler
     void*                              contextPtr    ///< [IN] The context to be given to the handler.
 )
 {
+    LE_UNUSED(ssIndHandler);
+    LE_UNUSED(contextPtr);
     return NULL;
 }
 
@@ -1126,6 +1153,7 @@ void pa_mrc_RemoveSignalStrengthIndHandler
     le_event_HandlerRef_t handlerRef
 )
 {
+    LE_UNUSED(handlerRef);
     return;
 }
 
@@ -1146,6 +1174,10 @@ le_result_t pa_mrc_SetSignalStrengthIndThresholds
     int32_t      upperRangeThreshold  ///< [IN] upper-range strength threshold in dBm
 )
 {
+    LE_UNUSED(rat);
+    LE_UNUSED(lowerRangeThreshold);
+    LE_UNUSED(upperRangeThreshold);
+
     return LE_FAULT;
 }
 
@@ -1499,6 +1531,7 @@ le_result_t pa_mrc_GetLteBandCapabilities
     le_mrc_LteBandBitMask_t* bandsPtr ///< [OUT] Bit mask to get the LTE Band capabilities.
 )
 {
+    LE_UNUSED(bandsPtr);
     LE_WARN("LTE not available");
     return LE_UNSUPPORTED;
 }
@@ -1518,6 +1551,7 @@ le_result_t pa_mrc_GetTdScdmaBandCapabilities
     le_mrc_TdScdmaBandBitMask_t* bandsPtr ///< [OUT] Bit mask to get the TD-SCDMA Band capabilities.
 )
 {
+    LE_UNUSED(bandsPtr);
     LE_WARN("CDMA not available");
     return LE_UNSUPPORTED;
 }
@@ -1868,6 +1902,7 @@ le_result_t pa_mrc_SetBandPreferences
     le_mrc_BandBitMask_t bands ///< [IN] A bit mask to set the Band preferences.
 )
 {
+    LE_UNUSED(bands);
     return LE_FAULT;
 }
 
@@ -1886,6 +1921,7 @@ le_result_t pa_mrc_GetBandPreferences
     le_mrc_BandBitMask_t* bandsPtr ///< [OUT] A bit mask to get the Band preferences.
 )
 {
+    LE_UNUSED(bandsPtr);
     return LE_FAULT;
 }
 
@@ -1903,6 +1939,7 @@ le_result_t pa_mrc_SetLteBandPreferences
     le_mrc_LteBandBitMask_t bands ///< [IN] A bit mask to set the LTE Band preferences.
 )
 {
+    LE_UNUSED(bands);
     return LE_FAULT;
 }
 
@@ -1920,6 +1957,7 @@ le_result_t pa_mrc_GetLteBandPreferences
     le_mrc_LteBandBitMask_t* bandsPtr ///< [OUT] A bit mask to get the LTE Band preferences.
 )
 {
+    LE_UNUSED(bandsPtr);
     return LE_FAULT;
 }
 
@@ -1937,6 +1975,7 @@ le_result_t pa_mrc_SetTdScdmaBandPreferences
     le_mrc_TdScdmaBandBitMask_t bands ///< [IN] A bit mask to set the TD-SCDMA Band Preferences.
 )
 {
+    LE_UNUSED(bands);
     return LE_FAULT;
 }
 
@@ -1955,6 +1994,7 @@ le_result_t pa_mrc_GetTdScdmaBandPreferences
                                           ///<  preferences.
 )
 {
+    LE_UNUSED(bandsPtr);
     return LE_FAULT;
 }
 
@@ -2393,6 +2433,8 @@ le_result_t pa_mrc_local_ParseNetworkScan
     le_dls_List_t*      scanInformationListPtr ///< [OUT] list of pa_mrc_ScanInformation_t
 )
 {
+    LE_UNUSED(ratMask);
+    LE_UNUSED(scanType);
     le_result_t             res = LE_OK;
     int                     nbNetwork;
     char                    mncStr[LE_MRC_MNC_BYTES];

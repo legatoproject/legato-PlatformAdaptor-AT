@@ -7,6 +7,10 @@
 #include "legato.h"
 #include "interfaces.h"
 
+#ifdef MK_ATPROXY_CONFIG_CLIB
+#include "le_atClientIF.h"
+#include "atServerIF.h"
+#endif
 
 #include "pa_utils.h"
 #include "pa_mdc.h"
