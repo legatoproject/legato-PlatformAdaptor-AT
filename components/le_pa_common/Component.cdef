@@ -7,9 +7,9 @@ requires:
         le_mrc.api        [types-only]
         le_sim.api        [types-only]
         le_info.api       [types-only]
+        le_sms.api        [types-only]
 #if ${MK_CONFIG_THIN_MODEM} = y
 #else
-        le_sms.api        [types-only]
         le_ecall.api      [types-only]
         le_ips.api        [types-only]
         le_temp.api       [types-only]
