@@ -717,11 +717,14 @@ le_result_t pa_mrc_Init
         return LE_FAULT;
     }
 
+    // Disable auto enabling CEREG
+#ifndef MK_CONFIG_DISABLE_CEREG_SET
     res = pa_mrc_ConfigureNetworkReg(PA_MRC_ENABLE_REG_LOC_NOTIFICATION);
     if(LE_OK != res)
     {
         return res;
     }
+#endif
 
     res = pa_mrc_GetNetworkRegConfig(&RegNotification);
     if(LE_OK != res)
