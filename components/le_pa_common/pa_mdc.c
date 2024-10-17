@@ -254,6 +254,8 @@ le_result_t pa_mdc_GetSessionType
     ipv4Res = pa_mdc_GetIPAddress(profileIndex, (le_mdmDefs_IpVersion_t)PA_MDC_SESSION_IPV4, addr, sizeof(addr));
     ipv6Res = pa_mdc_GetIPAddress(profileIndex, (le_mdmDefs_IpVersion_t)PA_MDC_SESSION_IPV6, addr, sizeof(addr));
 
+    LE_DEBUG("IPv4 result = %s, IPv6 result = %s", LE_RESULT_TXT(ipv4Res), LE_RESULT_TXT(ipv6Res));
+
     if((LE_OK == ipv4Res) && (LE_OK == ipv6Res))
     {
         *sessionIpPtr = PA_MDC_SESSION_IPV4V6;
