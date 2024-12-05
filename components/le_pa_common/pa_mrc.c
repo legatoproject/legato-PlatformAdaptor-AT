@@ -366,7 +366,8 @@ static le_result_t GetRegistration
 
     if ((LE_MRC_BITMASK_RAT_LTE & ratMask) ||
         (LE_MRC_BITMASK_RAT_CATM1 & ratMask) ||
-        (LE_MRC_BITMASK_RAT_NB1 & ratMask))
+        (LE_MRC_BITMASK_RAT_NB1 & ratMask) ||
+        (LE_MRC_BITMASK_RAT_NBNTN & ratMask))
     {
         res = le_atClient_SetCommandAndSend(&cmdRef,
                                             pa_utils_GetAtDeviceRef(),
@@ -438,7 +439,8 @@ static le_result_t GetRegistration
     {
         if ((LE_MRC_BITMASK_RAT_LTE & ratMask) ||
             (LE_MRC_BITMASK_RAT_CATM1 & ratMask) ||
-            (LE_MRC_BITMASK_RAT_NB1 & ratMask))
+            (LE_MRC_BITMASK_RAT_NB1 & ratMask) ||
+            (LE_MRC_BITMASK_RAT_NBNTN & ratMask))
         {
             tokenPtr = strtok_r(responseStr + strlen("+CEREG:"), ",", &savePtr);
         }
